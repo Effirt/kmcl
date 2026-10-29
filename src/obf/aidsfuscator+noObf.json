@@ -1,0 +1,13 @@
+{
+    "global": {
+        "class": [
+            "picocli/**",
+            "com/google/gson/**",
+            "net/raphimc/minecraftauth/**",
+            "net/lenni0451/**",
+
+            "cd/cc/effirt/kinastminecraftlauncher/auth/**",
+            "cd/cc/effirt/kinastminecraftlauncher/command/**"
+        ]
+    }
+}

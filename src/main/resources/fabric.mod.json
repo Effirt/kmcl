@@ -1,0 +1,24 @@
+{
+	"schemaVersion": 1,
+	"id": "example",
+	"version": "${version}",
+	"name": "Example",
+	"description": "",
+	"authors": [
+		"Effirt"
+	],
+	"contact": {},
+	"license": "",
+	"icon": "",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+          		"cd.cc.effirt.Example.Main"
+		],
+		"preLaunch": [
+			"cd.cc.effirt.Example.Main"
+		]
+	},
+	"mixins": [],
+	"depends": {}
+}

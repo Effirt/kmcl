@@ -1,0 +1,1 @@
+--color=always --no-fallback -H:AdvancedObfuscation=""  --enable-sbom=false --enable-url-protocols=https
