@@ -5,7 +5,7 @@ English
 
 # Kinast Minecraft Launcher
 
-A terminal Minecraft launcher
+A command line Minecraft launcher
 
 ## requirements
 - Java 25 or newer
@@ -29,7 +29,7 @@ Chinese
 
 # Kinast Minecraft 发射器
 
-一个码头Minecraft发射器
+一个指令线Minecraft发射器
 
 ## 需求
 - Java 25 或更新版本
