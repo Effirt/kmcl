@@ -30,6 +30,7 @@ public class LaunchInstance {
     private static final Pattern JWT_RA_PATTERN = Pattern.compile("eyJ[A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+){1,4}");
     private static final String LOG4J_RESOURCE = "/kmcl-log4j2.xml";
     private static final String LOG4J_FILENAME = "kmcl-client.xml";
+    private static final String VERSION = VersionProvider.getVer();
 
     public static int launch(String instanceName, Account acc) throws IOException {
         // 1. 读 JSON
@@ -154,7 +155,7 @@ public class LaunchInstance {
         String uuid = acc.uuid().toString().replace("-", "");
 
         if (acc.type() == Account.Type.MSA) {
-            HttpClient http = MinecraftAuth.createHttpClient("KinastMinecraftLauncher/0.3.0");
+            HttpClient http = MinecraftAuth.createHttpClient("KinastMinecraftLauncher/" + VERSION);
             JavaAuthManager mgr = JavaAuthManager.fromJson(http, acc.msaTokens());
 
             mgr.getChangeListeners().add(() -> {
@@ -191,7 +192,7 @@ public class LaunchInstance {
             v.put("user_properties", "{}");
         } else {
             v.put("auth_player_name", acc.name());
-            v.put("auth_uuid", uuid);          // ← 删掉 "String uuid = uuid;"
+            v.put("auth_uuid", uuid);
             v.put("auth_access_token", "kmcl");
             v.put("auth_session", "token:kmcl:" + uuid);
             v.put("auth_xuid", "kmcl");
@@ -199,7 +200,6 @@ public class LaunchInstance {
             v.put("user_properties", "{}");
         }
 
-        // ---- 以下原样保留 ----
         v.put("version_name", info.mcVersion());
         v.put("version_type", info.type() == null ? "release" : info.type());
         v.put("game_directory", gameDir.toString());
@@ -232,7 +232,6 @@ public class LaunchInstance {
         for (Library lib : info.libraries()) {
             if (!lib.isAllowed()) continue;
 
-            // legacy (LWJGL 2)：native jar 剔除，靠解压后的 dll + java.library.path
             if (!modern && isNativeLibrary(lib)) continue;
 
             Path p = resolveLibraryPath(lib, libsDir);
@@ -301,7 +300,6 @@ public class LaunchInstance {
         return fallback;
     }
 
-    // 3. 新增 majorVersion，带 timeout
     private static int majorVersion(Path javaPath) {
         if (!Files.isRegularFile(javaPath)) return -1;
         try {
