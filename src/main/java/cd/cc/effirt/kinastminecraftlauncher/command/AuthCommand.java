@@ -109,7 +109,7 @@ public class AuthCommand implements Callable<Integer> {
                 var current = storage.getCurrent();
                 Table table = new Table("#", "Name", "Type", "UUID");
                 for (Account a : accounts) {
-                    String marker = current.filter(n -> n.equals(a.name())).isPresent() ? "*" : ".";
+                    String marker = current.filter(n -> n.equals(a.name())).isPresent() ? ">" : ".";
                     table.row(marker, a.name(), a.type().toString(), a.uuid().toString());
                 }
                 IO.println(table.render());
