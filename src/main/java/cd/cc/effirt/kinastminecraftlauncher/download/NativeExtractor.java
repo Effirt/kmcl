@@ -25,13 +25,12 @@ public final class NativeExtractor {
                 var name = entry.getName();
                 if (exclude.stream().anyMatch(name::startsWith)) continue;
 
-                // ZIP 规范固定用 '/' 作分隔符，手工切割比 Path.of 更稳
                 int slash = name.lastIndexOf('/');
                 var fileName = slash >= 0 ? name.substring(slash + 1) : name;
                 if (fileName.isEmpty() || fileName.equals(".") || fileName.equals("..")) continue;
 
                 var out = dest.resolve(fileName).normalize();
-                if (!out.startsWith(dest)) continue;      // 防御性，正常不会触发
+                if (!out.startsWith(dest)) continue;      // 防御
 
                 try (var in = zip.getInputStream(entry);
                      var os = Files.newOutputStream(out)) {

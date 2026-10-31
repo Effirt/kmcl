@@ -65,8 +65,9 @@ public class InstanceCommand implements Callable<Integer> {
                 Account acc = getAccount();
 
                 Log.info("Use account: {}", acc);
-                Log.info("Minecraft exit code: {}", LaunchInstance.launch(name, acc));
-                return SUCCESSFUL;
+                int code = LaunchInstance.launch(name, acc);
+                Log.info("Minecraft exit code: {}", code);
+                return code == 0 ? SUCCESSFUL : FAILED;
             } catch (IllegalArgumentException e) {
                 Log.error(e.getMessage());
                 return FAILED;

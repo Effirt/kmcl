@@ -2,9 +2,8 @@ package cd.cc.effirt.kinastminecraftlauncher.launch;
 
 import cd.cc.effirt.util.Log;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
@@ -15,8 +14,8 @@ public class InstanceConfig {
     public static void load(Path kmclConfig) {
         Path config = kmclConfig.resolve("kmcl.properties");
         if (Files.exists(config)) {
-            try (InputStream is = Files.newInputStream(config)) {
-                p.load(is);
+            try (BufferedReader br = Files.newBufferedReader(config, StandardCharsets.UTF_8)) {
+                p.load(br);
             } catch (IOException e) {
                 Log.error("Failed to read instance config", e);
             }
@@ -27,8 +26,8 @@ public class InstanceConfig {
             p.setProperty("minMemory", "");
             p.setProperty("maxMemory", "");
             try {
-                try (OutputStream os = Files.newOutputStream(config)) {
-                    p.store(os, null);
+                try (Writer w = Files.newBufferedWriter(config, StandardCharsets.UTF_8)) {
+                    p.store(w, null);
                 }
             } catch (IOException e) {
                 Log.error("Failed to write instance config", e);

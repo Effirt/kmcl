@@ -23,7 +23,7 @@ public class VersionInstaller {
         return DEFAULT_MC_ROOT.resolve("assets");
     }
 
-    // ============ client.jar ============
+    // client.jar
 
     public static void installClient(Path versionJson, String versionName, int maxAttempts)
             throws IOException {
@@ -50,8 +50,7 @@ public class VersionInstaller {
 
     // ============ libraries ============
 
-    public static void installLibraries(Path versionJson, String versionName, int maxAttempts)
-            throws IOException {
+    public static void installLibraries(Path versionJson, String versionName, int maxAttempts) throws IOException {
         installLibraries(VersionJSONParser.parse(versionJson), versionName, maxAttempts);
     }
 
@@ -71,7 +70,7 @@ public class VersionInstaller {
         Files.createDirectories(nativesDir);
 
         var tasks = new ArrayList<DownloadBatch.Task>();
-        var natives = new ArrayList<NativeEntry>();
+        ArrayList<NativeEntryRecord> natives = new ArrayList<>();
         int skipped = 0;
 
         for (var lib : info.libraries()) {
@@ -82,7 +81,7 @@ public class VersionInstaller {
             VersionJSONParser.Artifact art;
             boolean isNativeLib = false;
 
-            // ① 1.12.2 风格：lib.natives 映射 → classifiers（关键修复）
+            // 1.12.2: lib.natives 映射 -> classifiers
             var nativeArt = lib.nativeArtifact();
             if (nativeArt != null && nativeArt.url() != null) {
                 url = nativeArt.url();
@@ -90,7 +89,7 @@ public class VersionInstaller {
                 size = nativeArt.size();
                 isNativeLib = true;
             }
-            // ② 1.13+ 风格：maven name 里带 natives-windows 之类的 classifier
+            // 1.13+：maven name 里带 natives-windows 之类的 classifier
             else if (lib.classifier() != null && lib.classifier().startsWith("natives-")
                     && lib.downloads() != null && lib.downloads().classifiers() != null) {
                 var c = lib.downloads().classifiers().get(lib.classifier());
@@ -101,7 +100,7 @@ public class VersionInstaller {
                     isNativeLib = true;
                 }
             }
-            // ③ 普通库：downloads.artifact
+            // 普通库：downloads.artifact
             else if (lib.downloads() != null && lib.downloads().artifact() != null
                     && lib.downloads().artifact().url() != null) {
                 art = lib.downloads().artifact();
@@ -111,14 +110,14 @@ public class VersionInstaller {
                 // 1.13+ LWJGL 3 natives 有时走 artifact 形式（path 里含 -natives-）
                 isNativeLib = art.path() != null && art.path().contains("-natives-");
             }
-            // ④ 老式 url + maven 拼接
+            // 老式 url + maven 拼接
             else if (lib.url() != null && !lib.url().isBlank()
                     && lib.groupId() != null && lib.artifactId() != null && lib.version() != null) {
                 String base = lib.url().endsWith("/") ? lib.url() : lib.url() + "/";
                 path = lib.mavenPath();
                 url = base + path;
             }
-            // ⑤ 无法解析
+            // 无法解析
             else {
                 Log.warn("Skip library without resolvable URL: {}", lib.name());
                 skipped++;
@@ -130,7 +129,7 @@ public class VersionInstaller {
                 dest = libsDir.resolve(path);
             }
             tasks.add(new DownloadBatch.Task(url, size, dest));
-            if (isNativeLib) natives.add(new NativeEntry(dest, lib.extract()));
+            if (isNativeLib) natives.add(new NativeEntryRecord(dest, lib.extract()));
         }
 
         Log.info("Installing {} libraries, {} natives, {} skipped...",
@@ -138,7 +137,7 @@ public class VersionInstaller {
         DownloadBatch.run(tasks, maxAttempts, "libraries");
 
         Log.info("Extracting {} native jar...", natives.size());
-        for (var ne : natives) {
+        for (NativeEntryRecord ne : natives) {
             if (!Files.exists(ne.jar())) continue;
             try {
                 NativeExtractor.extract(ne.jar(), nativesDir, ne.extract());
@@ -146,10 +145,6 @@ public class VersionInstaller {
                 Log.warn("Extract native '{}' failed: {}", ne.jar(), e.getMessage());
             }
         }
-    }
-
-
-    private record NativeEntry(Path jar, VersionJSONParser.Extract extract) {
     }
 
     // ============ assets ============

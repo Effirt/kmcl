@@ -19,7 +19,6 @@ public final class AssetInstaller {
 
     private AssetInstaller() {}
 
-    /** logging 先落，再 index + objects。 */
     public static void install(VersionJSONParser.VersionInfo info, int maxAttempts)
             throws IOException {
         installLogging(info, maxAttempts);
@@ -32,7 +31,7 @@ public final class AssetInstaller {
             throws IOException {
         var logging = info.loggingClient();
         if (logging == null || logging.file() == null || logging.file().url() == null) {
-            return;   // 旧版本可能没有 logging，跳过
+            return;   // 旧版本可能没有 logging
         }
         var file = logging.file();
         var dest = VersionInstaller.assetsDir().resolve("log_configs").resolve(file.id());
@@ -127,7 +126,7 @@ public final class AssetInstaller {
 
             if (ai.size() <= 0 || Files.size(target) == ai.size()) return;
 
-            long actual = Files.size(target);          // ← 先读再删
+            long actual = Files.size(target);          //先读再删
             Files.deleteIfExists(target);
             last = new IOException("index size mismatch (want " + ai.size()
                     + ", got " + actual + ")");

@@ -4,6 +4,7 @@ import cd.cc.effirt.kinastminecraftlauncher.KMCLPath;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionInstaller;
 import cd.cc.effirt.util.Log;
 import cd.cc.effirt.util.Table;
+import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 
 import java.io.IOException;
@@ -77,7 +78,7 @@ public class InstanceList {
             if (id == null || id.isJsonNull()) return "?";
 
             return id.getAsString();
-        } catch (Exception _) {
+        } catch (IOException | JsonParseException | IllegalStateException _) {
             return "?";
         }
     }

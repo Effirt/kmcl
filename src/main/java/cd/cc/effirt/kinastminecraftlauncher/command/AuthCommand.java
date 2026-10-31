@@ -34,16 +34,16 @@ public class AuthCommand implements Callable<Integer> {
         return USAGE;
     }
 
-    @Command(name = "add", description = "Add an account (offline or Microsoft)")
+    @Command(name = "add", description = "Add an account")
     static class Add implements Callable<Integer> {
         @ArgGroup(multiplicity = "1")
         Target target;
 
         static class Target {
-            @Option(names = "-m", description = "Microsoft account (device code flow)")
+            @Option(names = {"-m", "--microsoft"}, description = "Microsoft account (device code flow)")
             boolean microsoft;
 
-            @Parameters(index = "0", description = "Offline player name")
+            @Parameters(index = "0", paramLabel = "<player>", description = "Offline player name")
             String player;
         }
 
@@ -67,7 +67,7 @@ public class AuthCommand implements Callable<Integer> {
 
     @Command(name = "delete", description = "Delete an account")
     static class Delete implements Callable<Integer> {
-        @Parameters(index = "0", description = "Player name")
+        @Parameters(index = "0", paramLabel = "<player>", description = "Player name")
         String player;
 
         @Override
@@ -123,8 +123,7 @@ public class AuthCommand implements Callable<Integer> {
 
     @Command(name = "use", description = "Set or show the default account")
     static class Use implements Callable<Integer> {
-        @Parameters(index = "0", arity = "0..1",
-                description = "Account name (omit to show current)")
+        @Parameters(index = "0", paramLabel = "<player>", arity = "0..1", description = "Account name")
         String player;
 
         @Override

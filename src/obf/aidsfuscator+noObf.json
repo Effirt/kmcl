@@ -1,13 +1,11 @@
 {
     "global": {
-        "class": [
-            "picocli/**",
-            "com/google/gson/**",
-            "net/raphimc/minecraftauth/**",
-            "net/lenni0451/**",
-
-            "cd/cc/effirt/kinastminecraftlauncher/auth/**",
-            "cd/cc/effirt/kinastminecraftlauncher/command/**"
-        ]
-    }
+		"class": [
+			"picocli/**",
+			"com/google/gson/**",
+			"net/lenni0451/**",
+			"net/raphimc/minecraftauth/msa/service/impl/*",
+			"cd/cc/effirt/kinastminecraftlauncher/auth/*"
+		]
+	}
 }

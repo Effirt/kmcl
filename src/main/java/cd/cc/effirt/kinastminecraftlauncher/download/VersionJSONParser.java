@@ -159,8 +159,9 @@ public final class VersionJSONParser {
             rules = rules == null ? null : List.copyOf(rules);
         }
 
+        @SuppressWarnings("BooleanMethodIsAlwaysInverted")
         public boolean isAllowed() {
-            return Rule.evaluate(rules);   // 原：Rule.evaluate(rules)
+            return Rule.evaluate(rules);
         }
 
         public String nativeClassifier() {
@@ -263,6 +264,7 @@ public final class VersionJSONParser {
     public record Rule(
             String action,
             String osName, String osArch, String osVersion,
+            String osVersionMin, String osVersionMax,
             boolean demoUser, boolean customResolution,
             boolean quickPlaysSupport, boolean quickPlaySingleplayer,
             boolean quickPlayMultiplayer, boolean quickPlayRealms
@@ -271,11 +273,30 @@ public final class VersionJSONParser {
             action = action == null ? "allow" : action;
         }
 
+        private static int compareVersion(String a, String b) {
+            String[] pa = a.split("\\.");
+            String[] pb = b.split("\\.");
+            int n = Math.max(pa.length, pb.length);
+            for (int i = 0; i < n; i++) {
+                int va = i < pa.length ? parseIntOr0(pa[i]) : 0;
+                int vb = i < pb.length ? parseIntOr0(pb[i]) : 0;
+                if (va != vb) return Integer.compare(va, vb);
+            }
+            return 0;
+        }
+
+        private static int parseIntOr0(String s) {
+            try { return Integer.parseInt(s.trim()); } catch (NumberFormatException e) { return 0; }
+        }
+
         /** 新增带 FeatureContext 的版本；旧的无参版本留给 library 规则。 */
         boolean matches(FeatureContext f) {
+            String sysVer = System.getProperty("os.version", "");
             if (osName != null && !osName.equals(currentOs())) return false;
             if (osArch != null && !osArch.equals(System.getProperty("os.arch"))) return false;
             if (osVersion != null && !System.getProperty("os.version").startsWith(osVersion)) return false;
+            if (osVersionMin != null && compareVersion(sysVer, osVersionMin) < 0) return false;
+            if (osVersionMax != null && compareVersion(sysVer, osVersionMax) > 0) return false;
 
             if (demoUser && !f.demoUser()) return false;
             if (customResolution && !f.customResolution()) return false;
@@ -295,10 +316,15 @@ public final class VersionJSONParser {
         static Rule of(JsonObject o) {
             String action = str(o, "action");
             String osName = null, osArch = null, osVersion = null;
+            String osVersionMin = null, osVersionMax = null;
             if (o.get("os") instanceof JsonObject os) {
                 osName = str(os, "name");
                 osArch = str(os, "arch");
                 osVersion = str(os, "version");
+                if (os.get("versionRange") instanceof JsonObject vr) {   // ← 解析 versionRange
+                    osVersionMin = str(vr, "min");
+                    osVersionMax = str(vr, "max");
+                }
             }
             boolean demo = false, res = false, qps = false, qp1 = false, qp2 = false, qpr = false;
             if (o.get("features") instanceof JsonObject f) {
@@ -309,15 +335,13 @@ public final class VersionJSONParser {
                 qp2 = bool(f, "is_quick_play_multiplayer");
                 qpr = bool(f, "is_quick_play_realms");
             }
-            return new Rule(action, osName, osArch, osVersion, demo, res, qps, qp1, qp2, qpr);
+            return new Rule(action, osName, osArch, osVersion, osVersionMin, osVersionMax, demo, res, qps, qp1, qp2, qpr);
         }
 
-        /** 兼容旧调用：Feature 全 false。Library.isAllowed() / evaluateIgnoreOs 走这条。 */
         public static boolean evaluate(List<Rule> rules) {
             return evaluate(rules, FeatureContext.NONE);
         }
 
-        /** 带 Feature 上下文的求值。 */
         public static boolean evaluate(List<Rule> rules, FeatureContext f) {
             if (rules == null || rules.isEmpty()) return true;
             boolean allow = false;
@@ -336,19 +360,21 @@ public final class VersionJSONParser {
 
     // =================== arguments ===================
 
-    public record Arguments(List<Argument> game, List<Argument> jvm) {
+    public record Arguments(List<Argument> game, List<Argument> jvm,
+                            List<Argument> defaultUserJvm) {
         public Arguments {
             game = game == null ? List.of() : List.copyOf(game);
             jvm = jvm == null ? List.of() : List.copyOf(jvm);
+            defaultUserJvm = defaultUserJvm == null ? List.of() : List.copyOf(defaultUserJvm);
         }
 
         static Arguments of(JsonObject o) {
             return o == null ? null
                     : new Arguments(readList(o.getAsJsonArray("game")),
-                    readList(o.getAsJsonArray("jvm")));
+                    readList(o.getAsJsonArray("jvm")),
+                    readList(o.getAsJsonArray("default-user-jvm")));
         }
 
-        /** 使用 Java 21+ 的类型模式 switch 一次性分派。 */
         private static List<Argument> readList(JsonArray arr) {
             if (arr == null) return List.of();
             var out = new ArrayList<Argument>(arr.size());
@@ -365,7 +391,6 @@ public final class VersionJSONParser {
             return out;
         }
 
-        /** Java 21+ 的 switch 表达式 + case null。 */
         private static List<String> valuesOf(JsonElement v) {
             return switch (v) {
                 case JsonPrimitive p -> List.of(p.getAsString());
@@ -379,13 +404,10 @@ public final class VersionJSONParser {
         }
     }
 
-    /**
-     * sealed interface：建模 arguments 数组的两个分支 —— 普通字面量 & 条件块。
-     * 调用方只需 `arg.passes()` 即可判定是否包含该参数。
-     */
     public sealed interface Argument permits Argument.Plain, Argument.Conditional {
 
         /** 无 Feature 上下文（FeatureContext.NONE）。 */
+        @SuppressWarnings("BooleanMethodIsAlwaysInverted")
         boolean passes();
 
         record Plain(String value) implements Argument {

@@ -43,7 +43,7 @@ public class VersionDownloader {
 
     private static String resolveUrl(String mcVersion) throws IOException {
         var versions = VersionManifest.getAll();
-        if (versions == null) throw new IOException("Failed to fetch version manifest.");
+        if (versions == null) throw new IOException("Failed to fetch version manifest");
         for (var row : versions) {
             if (row != null && mcVersion.equals(row[VersionManifest.ID])) return row[VersionManifest.URL];
         }

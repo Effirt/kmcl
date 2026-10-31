@@ -42,26 +42,3 @@ public class Main implements Callable<Integer> {
         return USAGE;
     }
 }
-
-/*
-package cd.cc.effirt.Example;
-
-import net.fabricmc.api.ModInitializer;
-import net.fabricmc.loader.api.entrypoint.PreLaunchEntrypoint;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-public class Main implements ModInitializer, PreLaunchEntrypoint {
-
-	public static final String MOD_ID = "Example";
-	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
-
-	@Override
-	public void onInitialize() {
-	}
-
-	@Override
-	public void onPreLaunch() {
-	}
-}
-*/

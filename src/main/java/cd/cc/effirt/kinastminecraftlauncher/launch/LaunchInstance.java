@@ -4,6 +4,7 @@ import cd.cc.effirt.kinastminecraftlauncher.KMCLPath;
 import cd.cc.effirt.kinastminecraftlauncher.VersionProvider;
 import cd.cc.effirt.kinastminecraftlauncher.auth.Account;
 import cd.cc.effirt.kinastminecraftlauncher.auth.AccountStorage;
+import cd.cc.effirt.kinastminecraftlauncher.auth.AccountTypeEnum;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionInstaller;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionJSONParser;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionJSONParser.Argument;
@@ -30,7 +31,6 @@ public class LaunchInstance {
     private static final Pattern JWT_RA_PATTERN = Pattern.compile("eyJ[A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+){1,4}");
     private static final String LOG4J_RESOURCE = "/kmcl-log4j2.xml";
     private static final String LOG4J_FILENAME = "kmcl-client.xml";
-    private static final String VERSION = VersionProvider.getVer();
 
     public static int launch(String instanceName, Account acc) throws IOException {
         // 1. 读 JSON
@@ -60,28 +60,38 @@ public class LaunchInstance {
         List<String> classpath = buildClasspath(instanceName, info);
         vars.put("classpath", String.join(File.pathSeparator, classpath));
 
-        // 4. 命令行
         List<String> cmd = new ArrayList<>();
         if (java != null && !java.isEmpty()) cmd.add(java);
         else cmd.add(resolveJava(info).toString());
 
-        if (maxMemory != null && !maxMemory.isEmpty()) cmd.add("-Xmx" + maxMemory);
-        if (minMemory != null && !minMemory.isEmpty()) cmd.add("-Xms" + minMemory);
+        boolean userXmx = maxMemory != null && !maxMemory.isEmpty();
+        boolean userXms = minMemory != null && !minMemory.isEmpty();
+        if (userXmx) cmd.add("-Xmx" + maxMemory);
+        if (userXms) cmd.add("-Xms" + minMemory);
 
         boolean modern = info.arguments() != null;
 
-        // 4.1 JVM 参数 —— 注意 !a.passes()
+        // 4.1 JVM 参数
         if (modern) {
+            // 1) default-user-jvm：只在用户没覆盖时采用
+            for (Argument a : info.arguments().defaultUserJvm()) {
+                if (!a.passes()) continue;
+                for (String raw : argValues(a)) {
+                    if (userXmx && raw.startsWith("-Xmx")) continue;   // 用户已指定才跳过
+                    if (userXms && raw.startsWith("-Xms")) continue;
+                    if (raw.startsWith("-Djava.library.path=")) continue;
+                    cmd.add(substitute(raw, vars));
+                }
+            }
+            // 2) jvm：启动器必备，全部保留
             for (Argument a : info.arguments().jvm()) {
                 if (!a.passes()) continue;
                 for (String raw : argValues(a)) {
-                    // modern LWJGL 3：跳过 java.library.path，让 native jar 提取流程生效
                     if (raw.startsWith("-Djava.library.path=")) continue;
                     cmd.add(substitute(raw, vars));
                 }
             }
         } else {
-            // 旧版 LWJGL 2：需要 java.library.path + 已解压的 natives 目录
             cmd.add("-Djava.library.path=" + vars.get("natives_directory"));
             cmd.add("-cp");
             cmd.add(vars.get("classpath"));
@@ -154,15 +164,15 @@ public class LaunchInstance {
         Map<String, String> v = new HashMap<>();
         String uuid = acc.uuid().toString().replace("-", "");
 
-        if (acc.type() == Account.Type.MSA) {
-            HttpClient http = MinecraftAuth.createHttpClient("KinastMinecraftLauncher/" + VERSION);
+        if (acc.type() == AccountTypeEnum.MSA) {
+            HttpClient http = MinecraftAuth.createHttpClient("KinastMinecraftLauncher/" + VersionProvider.getVer());
             JavaAuthManager mgr = JavaAuthManager.fromJson(http, acc.msaTokens());
 
             mgr.getChangeListeners().add(() -> {
                 try {
                     MinecraftProfile profile = mgr.getMinecraftProfile().getCached();
                     if (profile == null) {
-                        profile = mgr.getMinecraftProfile().getUpToDate();   // 兜底
+                        profile = mgr.getMinecraftProfile().getUpToDate();   // Fallback
                     }
                     Account updated = Account.msa(
                             profile.getName(),
@@ -208,20 +218,12 @@ public class LaunchInstance {
         v.put("assets_index_name", info.assets() == null ? "legacy" : info.assets());
         v.put("natives_directory", VersionInstaller.versionDir(instanceName).resolve("natives").toString());
         v.put("launcher_name", "kmcl");
-        v.put("launcher_version", resolveLauncherVersion());
+        v.put("launcher_version", VersionProvider.getVer());
         v.put("library_directory", DEFAULT_MC_ROOT.resolve("libraries").toString());
         v.put("classpath_separator", File.pathSeparator);
         v.put("clientid", "kmcl");
 
         return v;
-    }
-
-    private static String resolveLauncherVersion() {
-        try {
-            return VersionProvider.getVer();
-        } catch (RuntimeException _) {
-            return "0.0.0";
-        }
     }
 
     private static List<String> buildClasspath(String instanceName, VersionInfo info) {
@@ -306,7 +308,8 @@ public class LaunchInstance {
             Process p = new ProcessBuilder(javaPath.toString(), "-version")
                     .redirectErrorStream(true).start();
             if (!p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)) {
-                p.destroyForcibly(); return -1;
+                p.destroyForcibly();
+                return -1;
             }
             String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             int i = out.indexOf("version \"");
@@ -317,7 +320,9 @@ public class LaunchInstance {
             String[] parts = rest.substring(0, e).split("\\.");
             return parts[0].equals("1") && parts.length > 1
                     ? Integer.parseInt(parts[1]) : Integer.parseInt(parts[0]);
-        } catch (Exception ex) { return -1; }
+        } catch (Exception ex) {
+            return -1;
+        }
     }
 
     private static Path prepareLog4jConfig() {

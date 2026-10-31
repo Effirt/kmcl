@@ -115,7 +115,7 @@ public class DownloadCommand implements Callable<Integer> {
                 description = "Retry attempts on download failure")
         int retry;
 
-        @Option(names = {"--loader-version"},
+        @Option(names = {"--loader-version", "-lv"},
                 description = "Loader version")
         String loaderVersion;
 
