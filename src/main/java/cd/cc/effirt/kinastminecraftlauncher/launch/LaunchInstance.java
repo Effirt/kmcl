@@ -227,13 +227,12 @@ public class LaunchInstance {
     }
 
     private static List<String> buildClasspath(String instanceName, VersionInfo info) {
-        List<String> cp = new ArrayList<>();
+        Set<String> cp = new LinkedHashSet<>();
         Path libsDir = DEFAULT_MC_ROOT.resolve("libraries");
         boolean modern = info.arguments() != null;
 
         for (Library lib : info.libraries()) {
             if (!lib.isAllowed()) continue;
-
             if (!modern && isNativeLibrary(lib)) continue;
 
             Path p = resolveLibraryPath(lib, libsDir);
@@ -246,7 +245,7 @@ public class LaunchInstance {
         if (Files.isRegularFile(clientJar)) {
             cp.add(clientJar.toString());
         }
-        return cp;
+        return new ArrayList<>(cp);
     }
 
     private static boolean isNativeLibrary(Library lib) {
@@ -297,7 +296,7 @@ public class LaunchInstance {
             }
         }
         Path fallback = Path.of(System.getProperty("java.home"), "bin", javaName);
-        Log.warn("No Java {} found, falling back to {}",
+        Log.warn("No Java{} found, falling back to {}",
                 required, fallback);
         return fallback;
     }
@@ -307,7 +306,7 @@ public class LaunchInstance {
         try {
             Process p = new ProcessBuilder(javaPath.toString(), "-version")
                     .redirectErrorStream(true).start();
-            if (!p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)) {
+            if (!p.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)) {
                 p.destroyForcibly();
                 return -1;
             }

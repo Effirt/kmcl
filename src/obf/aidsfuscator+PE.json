@@ -72,11 +72,11 @@
 			"confuseFlow": true
 		},
 		"controlFlowFlatten": {
-			"enabled": true,
-			"obfuscateValues": true
+			"enabled": false,
+			"obfuscateValues": false
 		},
 		"controlFlowShuffle": {
-			"enabled": true
+			"enabled": false
 		},
 		"cleanDeadCode": {
 			"enabled": false

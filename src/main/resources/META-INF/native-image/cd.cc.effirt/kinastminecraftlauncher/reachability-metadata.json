@@ -23,13 +23,15 @@
     },
     {
       "type": "cd.cc.effirt.kinastminecraftlauncher.auth.Account",
+      "allDeclaredConstructors": true,
+      "allRecordComponents": true,
       "methods": [
         {
           "name": "<init>",
           "parameterTypes": [
             "java.lang.String",
             "java.util.UUID",
-            "cd.cc.effirt.kinastminecraftlauncher.auth.Account$Type",
+            "cd.cc.effirt.kinastminecraftlauncher.auth.AccountTypeEnum",
             "com.google.gson.JsonObject"
           ]
         },
@@ -52,7 +54,7 @@
       ]
     },
     {
-      "type": "cd.cc.effirt.kinastminecraftlauncher.auth.Account$Type",
+      "type": "cd.cc.effirt.kinastminecraftlauncher.auth.AccountTypeEnum",
       "fields": [
         {
           "name": "MSA"

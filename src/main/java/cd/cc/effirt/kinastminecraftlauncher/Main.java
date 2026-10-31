@@ -37,7 +37,6 @@ public class Main implements Callable<Integer> {
 
     @Override
     public Integer call() {
-        Log.error("TUI is WIP, please waiting...");
         CommandLine.usage(this, System.err);
         return USAGE;
     }

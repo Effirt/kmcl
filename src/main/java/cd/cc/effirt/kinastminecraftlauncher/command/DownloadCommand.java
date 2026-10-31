@@ -1,6 +1,7 @@
 package cd.cc.effirt.kinastminecraftlauncher.command;
 
 import cd.cc.effirt.kinastminecraftlauncher.download.fabric.FabricInstaller;
+import cd.cc.effirt.kinastminecraftlauncher.download.neoforge.NeoForgeInstaller;
 import cd.cc.effirt.util.Log;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionDownloader;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionInstaller;
@@ -127,10 +128,13 @@ public class DownloadCommand implements Callable<Integer> {
                 Path jsonFile = switch (loader) {
                     case vanilla -> VersionDownloader.downloadVanillaJson(mcVersion, name);
                     case fabric -> FabricInstaller.install(mcVersion, loaderVersion, name);
+                    case neoforge -> NeoForgeInstaller.install(mcVersion, loaderVersion, name);
                     default -> throw new UnsupportedLoaderException(loader);
                 };
 
-                VersionInstaller.installClient(jsonFile, name, retry);
+                if (loader != MinecraftLoaderEnum.neoforge) {
+                    VersionInstaller.installClient(jsonFile, name, retry);
+                }
                 VersionInstaller.installLibraries(jsonFile, name, retry);
                 VersionInstaller.installAssets(jsonFile, retry);
                 Log.info("Successful install instance '{}' (Minecraft {})", name, mcVersion);
