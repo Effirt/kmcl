@@ -27,8 +27,6 @@ public final class NeoForgeInstaller {
     private static final String BMCLAPI_META = BMCLAPI_MAVEN + "net/neoforged/neoforge/maven-metadata.xml";
     private static final String OFFICIAL_MAVEN = "https://maven.neoforged.net/releases/";
 
-    private NeoForgeInstaller() {
-    }
 
     public static Path install(String mcVersion, String requestedLoader, String instanceName)
             throws IOException {
@@ -82,21 +80,14 @@ public final class NeoForgeInstaller {
     }
 
     private static String loaderPrefix(String mcVersion) {
-        // MC 1.x 老格式：1.21.1 → 21.1.
-        // MC 26.x 新格式：
-        //   26.1   → 26.1.0.    (只有 beta)
-        //   26.1.2 → 26.1.2.
         String base = mcVersion.startsWith("1.") ? mcVersion.substring(2) : mcVersion;
         String[] parts = base.split("\\.");
         if (parts.length == 1) {
-            // MC 1.21 → base "21" → 21.0.X
             return base + ".0.";
         }
         if (parts.length == 2 && !mcVersion.startsWith("1.")) {
-            // MC 26.1 → 26.1.0.X（beta）
             return base + ".0.";
         }
-        // MC 1.21.1 → 21.1.   /  MC 26.1.2 → 26.1.2.
         return base + ".";
     }
 
@@ -179,7 +170,6 @@ public final class NeoForgeInstaller {
 
     /**
      * 解压 installer jar，把 install_profile.json / version.json 里的URL
-     * 再重新打包。这样 installer 子进程下载库时走 BMCLAPI。
      */
     private static Path patchInstallerForMirror(Path installer) throws IOException {
         Path work = Files.createTempDirectory("nf-mirror-");
