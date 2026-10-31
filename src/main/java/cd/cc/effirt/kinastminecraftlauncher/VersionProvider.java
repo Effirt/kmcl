@@ -2,25 +2,14 @@ package cd.cc.effirt.kinastminecraftlauncher;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Year;
 import java.util.Properties;
 
 import cd.cc.effirt.util.Log;
 import picocli.CommandLine;
 
-public class VersionProvider implements CommandLine.IVersionProvider{
+public class VersionProvider implements CommandLine.IVersionProvider {
     private static final String VERSION_RESOURCE = "/kmcl.properties";
-    private static volatile String cachedVersion;
-
-    private static String loadVersion() {
-        String v = cachedVersion;
-        if (v != null) return v;
-        synchronized (VersionProvider.class) {
-            if (cachedVersion == null) {
-                cachedVersion = doLoadVersion();
-            }
-            return cachedVersion;
-        }
-    }
 
     private static String doLoadVersion() {
         try (InputStream is = VersionProvider.class.getResourceAsStream(VERSION_RESOURCE)) {
@@ -37,10 +26,10 @@ public class VersionProvider implements CommandLine.IVersionProvider{
 
     @Override
     public String[] getVersion() {
-        return new String[]{"Kinast Minecraft Launcher " + loadVersion()};
+        return new String[]{"Kinast Minecraft Launcher " + doLoadVersion(), "Copyright " + Year.now() + " Effirt"};
     }
 
     public static String getVer() {
-        return loadVersion();
+        return doLoadVersion();
     }
 }
