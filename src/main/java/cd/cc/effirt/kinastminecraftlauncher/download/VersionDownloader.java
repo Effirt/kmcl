@@ -10,16 +10,18 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class VersionDownloader {
 
-    public static Path downloadVanillaJson(String mcVersion, String name) throws IOException {
+    public static Path downloadVanillaJson(String mcVersion, String name, boolean isBase)
+            throws IOException {
         String url = resolveUrl(mcVersion);
         if (url == null) throw new VersionNotFoundException(mcVersion);
 
-        Path target = VersionInstaller.versionDir(name).resolve(name + ".json");
+        Path target = VersionInstaller.versionJson(name, mcVersion);
         Files.createDirectories(target.getParent());
 
         Log.info("Downloading {} version JSON...", mcVersion);
@@ -28,6 +30,31 @@ public class VersionDownloader {
             pb.start();
             Http.getDownload(url, target, pb);
         }
+
+        // 写 kmcl.minecraftVersion + kmcl.base
+        try {
+            var root = JsonParser.parseString(Files.readString(target, StandardCharsets.UTF_8))
+                    .getAsJsonObject();
+            root.addProperty("kmcl.minecraftVersion", mcVersion);
+            root.addProperty("kmcl.base", isBase);
+            Files.writeString(target, root.toString(), StandardCharsets.UTF_8);
+        } catch (JsonParseException e) {
+            throw new IOException("Malformed version JSON from " + url, e);
+        }
+
+        // base JSON：供 ensureVanillaInstalled / NeoForgeInstaller 使用
+        Path base = VersionInstaller.versionJson(mcVersion, mcVersion);
+        if (!base.equals(target) && !Files.exists(base)) {
+            try {
+                var root = JsonParser.parseString(Files.readString(target, StandardCharsets.UTF_8))
+                        .getAsJsonObject();
+                root.addProperty("kmcl.base", true);
+                Files.writeString(base, root.toString(), StandardCharsets.UTF_8);
+                Log.debug("Created base JSON {}", base);
+            } catch (JsonParseException _) {
+            }
+        }
+
         return target;
     }
 

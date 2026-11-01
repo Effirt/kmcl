@@ -25,6 +25,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 public class LaunchInstance {
     private static final Path DEFAULT_MC_ROOT = KMCLPath.getKmclPath();
@@ -33,31 +34,30 @@ public class LaunchInstance {
     private static final String LOG4J_FILENAME = "kmcl-client.xml";
 
     public static int launch(String instanceName, Account acc) throws IOException {
-        // 1. 读 JSON
-        Path jsonFile = VersionInstaller.versionDir(instanceName).resolve(instanceName + ".json");
-        if (!Files.isRegularFile(jsonFile)) {
-            throw new IOException("Instance not found: " + instanceName);
-        }
+        // 1. 反查 mcVersion + 读 JSON
+        Path jsonFile = resolveInstanceJson(instanceName);
         VersionInfo info = VersionJSONParser.parse(jsonFile);
         if (info.mainClass() == null || info.mainClass().isBlank()) {
             throw new IOException("version JSON has no mainClass: " + jsonFile);
         }
+        String mcVersion = info.mcVersion();
+        if (mcVersion == null || mcVersion.isBlank()) {
+            throw new IOException("Instance '" + instanceName + "' has no kmcl.minecraftVersion");
+        }
 
-        Path instDir = VersionInstaller.versionDir(instanceName);
-        InstanceConfig.load(instDir);
+        // 2. 实例目录 & 配置（配置放 instances/<name>，避免多实例冲突）
+        Path gameDir = VersionInstaller.instanceGameDir(instanceName);
+        Files.createDirectories(gameDir);
+        InstanceConfig.load(gameDir);
         String java = InstanceConfig.getJava();
         String arguments = InstanceConfig.getArguments();
         String jvmArguments = InstanceConfig.getJvmArguments();
         String maxMemory = InstanceConfig.getMaxMemory();
         String minMemory = InstanceConfig.getMinMemory();
 
-        // 2. 工作目录 & 变量表
-        Path gameDir = VersionInstaller.instanceGameDir(instanceName);
-        Files.createDirectories(gameDir);
-        Map<String, String> vars = buildVars(instanceName, gameDir, info, acc);
-
-        // 3. classpath
-        List<String> classpath = buildClasspath(instanceName, info);
+        // 3. 变量表 & classpath
+        Map<String, String> vars = buildVars(instanceName, mcVersion, gameDir, info, acc);
+        List<String> classpath = buildClasspath(mcVersion, info);
         vars.put("classpath", String.join(File.pathSeparator, classpath));
 
         List<String> cmd = new ArrayList<>();
@@ -73,22 +73,21 @@ public class LaunchInstance {
 
         // 4.1 JVM 参数
         if (modern) {
-            // 1) default-user-jvm：只在用户没覆盖时采用
             for (Argument a : info.arguments().defaultUserJvm()) {
                 if (!a.passes()) continue;
                 for (String raw : argValues(a)) {
-                    if (userXmx && raw.startsWith("-Xmx")) continue;   // 用户已指定才跳过
+                    if (userXmx && raw.startsWith("-Xmx")) continue;
                     if (userXms && raw.startsWith("-Xms")) continue;
                     if (raw.startsWith("-Djava.library.path=")) continue;
                     cmd.add(substitute(raw, vars));
                 }
             }
-            // 2) jvm：启动器必备，全部保留
+            // modern 分支的 jvm 参数处理
             for (Argument a : info.arguments().jvm()) {
                 if (!a.passes()) continue;
                 for (String raw : argValues(a)) {
                     if (raw.startsWith("-Djava.library.path=")) continue;
-                    cmd.add(substitute(raw, vars));
+                    cmd.add(fixIgnoreList(substitute(raw, vars), mcVersion));
                 }
             }
         } else {
@@ -100,7 +99,7 @@ public class LaunchInstance {
         // 4.2 log4j 配置
         Path logConfig = prepareLog4jConfig();
         if (logConfig != null) {
-            cmd.add("-Dlog4j.configurationFile=" + logConfig.toAbsolutePath());
+            cmd.add("-Dlog4j.configurationFile=" + logConfig.toAbsolutePath().toUri());
         } else if (info.loggingClient() != null
                 && info.loggingClient().file() != null
                 && info.loggingClient().argument() != null) {
@@ -116,7 +115,7 @@ public class LaunchInstance {
 
         cmd.add(info.mainClass());
 
-        // 4.3 Game 参数 —— 同样 !a.passes()
+        // 4.3 Game 参数
         if (modern) {
             for (Argument a : info.arguments().game()) {
                 if (!a.passes()) continue;
@@ -133,7 +132,7 @@ public class LaunchInstance {
         if (arguments != null && !arguments.isEmpty()) appendArgs(cmd, arguments);
 
         // 5. 启动
-        Log.info("Launching '{}' (Minecraft {})...", instanceName, info.mcVersion());
+        Log.info("Launching '{}' (Minecraft {})...", instanceName, mcVersion);
 
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.directory(gameDir.toFile());
@@ -159,8 +158,24 @@ public class LaunchInstance {
 
     // ==================== helpers ====================
 
-    private static Map<String, String> buildVars(String instanceName, Path gameDir,
-                                                 VersionInfo info, Account acc) throws IOException {
+    /** 扫描 versions/*\/<instanceName>.json 找到实例 JSON。 */
+    private static Path resolveInstanceJson(String instanceName) throws IOException {
+        Path versions = KMCLPath.getKmclPath().resolve("versions");
+        if (!Files.isDirectory(versions)) {
+            throw new IOException("versions/ not found: " + versions);
+        }
+        try (Stream<Path> s = Files.list(versions)) {
+            return s.filter(Files::isDirectory)
+                    .map(d -> d.resolve(instanceName + ".json"))
+                    .filter(Files::isRegularFile)
+                    .findFirst()
+                    .orElseThrow(() -> new IOException("Instance not found: " + instanceName));
+        }
+    }
+
+    private static Map<String, String> buildVars(String instanceName, String mcVersion,
+                                                 Path gameDir, VersionInfo info, Account acc)
+            throws IOException {
         Map<String, String> v = new HashMap<>();
         String uuid = acc.uuid().toString().replace("-", "");
 
@@ -172,7 +187,7 @@ public class LaunchInstance {
                 try {
                     MinecraftProfile profile = mgr.getMinecraftProfile().getCached();
                     if (profile == null) {
-                        profile = mgr.getMinecraftProfile().getUpToDate();   // Fallback
+                        profile = mgr.getMinecraftProfile().getUpToDate();
                     }
                     Account updated = Account.msa(
                             profile.getName(),
@@ -189,7 +204,7 @@ public class LaunchInstance {
             v.put("auth_player_name", acc.name());
             v.put("auth_uuid", uuid);
             v.put("auth_access_token", accessToken);
-            v.put("auth_session", "token:" + accessToken + ":" + uuid);// buildVars 里
+            v.put("auth_session", "token:" + accessToken + ":" + uuid);
             String xuidVal = "0";
             try {
                 String x = mgr.getXboxUserProfile().getUpToDate().getId();
@@ -210,13 +225,13 @@ public class LaunchInstance {
             v.put("user_properties", "{}");
         }
 
-        v.put("version_name", info.mcVersion());
+        v.put("version_name", instanceName);   // 游戏内显示实例名
         v.put("version_type", info.type() == null ? "release" : info.type());
         v.put("game_directory", gameDir.toString());
         v.put("assets_root", VersionInstaller.assetsDir().toString());
         v.put("game_assets", VersionInstaller.assetsDir().resolve("virtual/legacy").toString());
         v.put("assets_index_name", info.assets() == null ? "legacy" : info.assets());
-        v.put("natives_directory", VersionInstaller.versionDir(instanceName).resolve("natives").toString());
+        v.put("natives_directory", VersionInstaller.nativesDir(mcVersion).toString());
         v.put("launcher_name", "kmcl");
         v.put("launcher_version", VersionProvider.getVer());
         v.put("library_directory", DEFAULT_MC_ROOT.resolve("libraries").toString());
@@ -226,7 +241,7 @@ public class LaunchInstance {
         return v;
     }
 
-    private static List<String> buildClasspath(String instanceName, VersionInfo info) {
+    private static List<String> buildClasspath(String mcVersion, VersionInfo info) {
         Set<String> cp = new LinkedHashSet<>();
         Path libsDir = DEFAULT_MC_ROOT.resolve("libraries");
         boolean modern = info.arguments() != null;
@@ -241,9 +256,11 @@ public class LaunchInstance {
             }
         }
 
-        Path clientJar = VersionInstaller.versionDir(instanceName).resolve("client.jar");
+        Path clientJar = VersionInstaller.clientJar(mcVersion);   // versions/<mcVersion>/<mcVersion>.jar
         if (Files.isRegularFile(clientJar)) {
             cp.add(clientJar.toString());
+        } else {
+            Log.warn("Client jar not found: {}", clientJar);
         }
         return new ArrayList<>(cp);
     }
@@ -270,7 +287,6 @@ public class LaunchInstance {
         return null;
     }
 
-    // 2. 方法签名
     private static Path resolveJava(VersionInfo info) {
         int required = (info.javaVersion() != null && info.javaVersion().majorVersion() > 0)
                 ? info.javaVersion().majorVersion() : 21;
@@ -296,8 +312,7 @@ public class LaunchInstance {
             }
         }
         Path fallback = Path.of(System.getProperty("java.home"), "bin", javaName);
-        Log.warn("No Java{} found, falling back to {}",
-                required, fallback);
+        Log.warn("No Java{} found, falling back to {}", required, fallback);
         return fallback;
     }
 
@@ -377,5 +392,22 @@ public class LaunchInstance {
         for (String tok : raw.trim().split("\\s+")) {
             if (!tok.isEmpty()) cmd.add(tok);
         }
+    }
+
+    /**
+     * 确保 -DignoreList 包含 <mcVersion>.jar。
+     * NeoForge 的 version.json 里写的是 ${version_name}.jar，
+     * 而 ${version_name} 是 instanceName，与实际 client jar 文件名（<mcVersion>.jar）不一致，
+     * 导致 client jar 被 FML 当成模块加载，与 minecraft 模块冲突。
+     */
+    private static String fixIgnoreList(String raw, String mcVersion) {
+        String prefix = "-DignoreList=";
+        if (!raw.startsWith(prefix)) return raw;
+        String value = raw.substring(prefix.length());
+        String clientJar = mcVersion + ".jar";
+        for (String part : value.split(",")) {
+            if (part.equals(clientJar)) return raw;
+        }
+        return prefix + value + "," + clientJar;
     }
 }

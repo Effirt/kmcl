@@ -11,10 +11,9 @@ import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.stream.Stream;
 
-public final class AccountStorage {
+public class AccountStorage {
 
     // AccountStorage.java 里新增
     private static final String CURRENT_FILE = ".current";
@@ -60,13 +59,6 @@ public final class AccountStorage {
         return Optional.ofNullable(read(p));
     }
 
-    public Optional<Account> findByUuid(UUID uuid) throws IOException {
-        for (Account a : list()) {
-            if (a.uuid().equals(uuid)) return Optional.of(a);
-        }
-        return Optional.empty();
-    }
-
     public void save(Account account) throws IOException {
         // 同 UUID 的其他文件（Mojang 改名场景）先删
         Path target = fileFor(account.name());
@@ -97,7 +89,7 @@ public final class AccountStorage {
         Path p;
         try {
             p = fileFor(name);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException _) {
             return false;
         }
         return Files.deleteIfExists(p);
@@ -106,7 +98,7 @@ public final class AccountStorage {
     private void moveAtomically(Path src, Path dst) throws IOException {
         try {
             Files.move(src, dst, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException e) {
+        } catch (AtomicMoveNotSupportedException _) {
             Files.move(src, dst, StandardCopyOption.REPLACE_EXISTING);
         }
     }

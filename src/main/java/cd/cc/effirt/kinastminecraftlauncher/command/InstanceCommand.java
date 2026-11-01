@@ -72,7 +72,7 @@ public class InstanceCommand implements Callable<Integer> {
                 Log.error(e.getMessage());
                 return FAILED;
             } catch (IOException e) {
-                Log.error("Failed to launch '{}'", name, e);
+                Log.error("Failed to launch '{}'", name, e.getMessage());
                 return FAILED;
             }
         }

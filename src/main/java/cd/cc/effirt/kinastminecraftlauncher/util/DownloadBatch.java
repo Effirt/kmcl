@@ -39,8 +39,9 @@ public class DownloadBatch {
                 Files.deleteIfExists(t.dest());
 
                 if (attempt < maxAttempts) {
-                    try { Thread.sleep(backoffMs); }
-                    catch (InterruptedException ie) {
+                    try {
+                        Thread.sleep(backoffMs);
+                    } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
                         throw new IOException("interrupted", ie);
                     }
@@ -67,37 +68,43 @@ public class DownloadBatch {
             }
             toDo.add(t);
         }
-        if (skipped > 0)
-            Log.info("[{}] Downloading {} files, {} skip...", label, toDo.size(), skipped);
-        if (toDo.isEmpty()) return;
+        Log.info("[{}] Downloading {} files, {} skip...", label, toDo.size(), skipped);
 
         int total = toDo.size();
-        var done   = new AtomicInteger();
+        var done = new AtomicInteger();
         var errors = new ConcurrentLinkedQueue<Throwable>();
-        var sem    = new Semaphore(MAX_CONCURRENCY);
+        var sem = new Semaphore(MAX_CONCURRENCY);
 
         try (var pb = new ProgressBar()) {
             pb.setTodo(total);
             pb.start();
+            if (skipped > 0) {
+                pb.finish();
+            }
+            if (toDo.isEmpty()) {
+                pb.finish();
+                return;
+            }
 
             try (var ex = Executors.newVirtualThreadPerTaskExecutor()) {
-                for (var t : toDo) ex.submit(() -> {
-                    try {
-                        sem.acquire();
+                for (var t : toDo)
+                    ex.submit(() -> {
                         try {
-                            one(t, maxAttempts);
-                        } finally {
-                            sem.release();
+                            sem.acquire();
+                            try {
+                                one(t, maxAttempts);
+                            } finally {
+                                sem.release();
+                            }
+                            pb.setCustomText(t.dest().getFileName().toString());
+                            pb.setDone(done.incrementAndGet());
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                        } catch (Exception e) {
+                            errors.add(e);
+                            Log.error("Failed: {}", t.url(), e);
                         }
-                        pb.setCustomText(t.dest().getFileName().toString());
-                        pb.setDone(done.incrementAndGet());
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                    } catch (Exception e) {
-                        errors.add(e);
-                        Log.error("Failed: {}", t.url(), e);
-                    }
-                });
+                    });
             }
         }
 

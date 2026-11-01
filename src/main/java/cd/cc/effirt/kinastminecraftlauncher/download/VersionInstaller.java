@@ -13,53 +13,76 @@ import java.util.Comparator;
 
 public class VersionInstaller {
 
-    private static final Path DEFAULT_MC_ROOT = KMCLPath.getKmclPath();
+    public static Path versionDir(String mcVersion) {
+        return KMCLPath.getKmclPath().resolve("versions").resolve(mcVersion);
+    }
 
-    public static Path versionDir(String versionName) {
-        return DEFAULT_MC_ROOT.resolve("versions").resolve(versionName);
+    public static Path versionJson(String instanceName, String mcVersion) {
+        return versionDir(mcVersion).resolve(instanceName + ".json");
+    }
+
+    public static Path clientJar(String mcVersion) {
+        return versionDir(mcVersion).resolve(mcVersion + ".jar");
+    }
+
+    public static Path nativesDir(String mcVersion) {
+        return versionDir(mcVersion).resolve("natives");
     }
 
     public static Path assetsDir() {
-        return DEFAULT_MC_ROOT.resolve("assets");
+        return KMCLPath.getKmclPath().resolve("assets");
     }
 
     // client.jar
 
-    public static void installClient(Path versionJson, String versionName, int maxAttempts)
-            throws IOException {
-        installClient(VersionJSONParser.parse(versionJson), versionName, maxAttempts);
+    public static void installClient(Path versionJson, int maxAttempts) throws IOException {
+        installClient(VersionJSONParser.parse(versionJson), maxAttempts);
     }
 
-    public static void installClient(VersionJSONParser.VersionInfo info,
-                                     String versionName, int maxAttempts) throws IOException {
+    public static void installClient(VersionJSONParser.VersionInfo info, int maxAttempts)
+            throws IOException {
         var dl = info.downloads();
         if (dl == null || dl.client() == null || dl.client().url() == null)
             throw new IOException("version JSON has no downloads.client for id=" + info.id());
 
+        String mcVersion = info.mcVersion();
+        if (mcVersion == null || mcVersion.isBlank())
+            throw new IOException("version JSON has no mcVersion, cannot resolve jar path");
+
         var art = dl.client();
-        var dest = versionDir(versionName).resolve("client.jar");
+        var dest = clientJar(mcVersion);
         Files.createDirectories(dest.getParent());
 
-        Log.info("Downloading client.jar...");
+        Log.info("Downloading {}.jar...", mcVersion);
         try (var pb = new ProgressBar()) {
-            pb.setCustomText("client.jar");
+            pb.setCustomText(mcVersion + ".jar");
             pb.start();
-            DownloadBatch.one(new DownloadBatch.Task(art.url(), art.size(), dest), maxAttempts, pb);
+            if (Files.isRegularFile(dest) && (art.size() <= 0 || Files.size(dest) == art.size())) {
+                pb.finish();
+                return;
+            }
+            DownloadBatch.one(new DownloadBatch.Task(dl.client().url(), dl.client().size(), dest),
+                    maxAttempts, pb);
         }
     }
 
     // ============ libraries ============
 
-    public static void installLibraries(Path versionJson, String versionName, int maxAttempts) throws IOException {
-        installLibraries(VersionJSONParser.parse(versionJson), versionName, maxAttempts);
+    public static void installLibraries(Path versionJson, int maxAttempts) throws IOException {
+        installLibraries(VersionJSONParser.parse(versionJson), maxAttempts);
     }
 
-    public static void installLibraries(VersionJSONParser.VersionInfo info,
-                                        String versionName, int maxAttempts) throws IOException {
-        var libsDir = DEFAULT_MC_ROOT.resolve("libraries");
-        var nativesDir = versionDir(versionName).resolve("natives");
+    public static void installLibraries(VersionJSONParser.VersionInfo info, int maxAttempts)
+            throws IOException {
+        String mcVersion = info.mcVersion();
+        if (mcVersion == null || mcVersion.isBlank())
+            throw new IOException("version JSON has no mcVersion, cannot resolve natives path");
+
+        var libsDir = KMCLPath.getKmclPath().resolve("libraries");
+        var nativesDir = nativesDir(mcVersion);   // 共享，按 mcVersion
         Files.createDirectories(libsDir);
 
+        // 清空旧 natives（与原逻辑一致）
         if (Files.exists(nativesDir)) {
             try (var s = Files.walk(nativesDir)) {
                 s.sorted(Comparator.reverseOrder())
@@ -154,6 +177,6 @@ public class VersionInstaller {
     }
 
     public static Path instanceGameDir(String name) {
-        return DEFAULT_MC_ROOT.resolve("instances").resolve(name);
+        return KMCLPath.getKmclPath().resolve("instances").resolve(name);
     }
 }

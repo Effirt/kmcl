@@ -24,11 +24,9 @@ public class FabricInstaller {
         Log.info("Fabric Loader version: {}", loader);
 
         JsonObject profile = fetchProfile(mcVersion, loader);
-        JsonObject vanilla = VersionDownloader.fetchVanillaJson(mcVersion);
-        JsonObject merged = merge(vanilla, profile, instanceName, mcVersion);
+        JsonObject vanilla = VersionDownloader.fetchVanillaJson(mcVersion);JsonObject merged = merge(vanilla, profile, instanceName, mcVersion, loader);
 
-        Path target = VersionInstaller.versionDir(instanceName).resolve(instanceName + ".json");
-        Files.createDirectories(target.getParent());
+        Path target = VersionInstaller.versionJson(instanceName, mcVersion);
         Files.writeString(target, merged.toString(), StandardCharsets.UTF_8);
         return target;
     }
@@ -61,8 +59,9 @@ public class FabricInstaller {
                 "fabric profile " + mcVersion + "/" + loader);
     }
 
-    private static JsonObject merge(JsonObject vanilla, JsonObject profile, String instanceName, String mcVersion)
-            throws IOException {
+    private static JsonObject merge(JsonObject vanilla, JsonObject profile,
+                                    String instanceName, String mcVersion,
+                                    String loaderVersion) throws IOException {
         if (vanilla.has("minecraftArguments") && !vanilla.has("arguments")) {
             throw new IOException("Fabric requires arguments-format version JSON "
                     + "(Minecraft 1.14+); got legacy minecraftArguments.");
@@ -71,10 +70,13 @@ public class FabricInstaller {
         JsonObject merged = vanilla.deepCopy();
         merged.addProperty("id", instanceName);
         merged.addProperty("kmcl.minecraftVersion", mcVersion);
+        merged.addProperty("kmcl.loader", "fabric");
+        merged.addProperty("kmcl.loaderVersion", loaderVersion);
 
         if (profile.get("mainClass") instanceof JsonPrimitive mc) {
             merged.addProperty("mainClass", mc.getAsString());
         }
+
 
         JsonArray libs = ensureArray(merged, "libraries");
         if (profile.get("libraries") instanceof JsonArray plibs) {

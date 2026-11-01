@@ -113,9 +113,7 @@ public class VersionManifest {
             pb.setCustomText("version_manifest.json");
             pb.start();
             Log.info("Getting manifest...");
-            String r = Http.get(MANIFEST_URL, pb);
-            Log.debug(r);
-            return r;
+            return Http.get(MANIFEST_URL, pb);
         } catch (IOException e) {
             Log.error("Failed to get manifest", e);
             return null;

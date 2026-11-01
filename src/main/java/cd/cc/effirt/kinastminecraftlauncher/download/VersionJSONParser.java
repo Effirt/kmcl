@@ -286,7 +286,11 @@ public final class VersionJSONParser {
         }
 
         private static int parseIntOr0(String s) {
-            try { return Integer.parseInt(s.trim()); } catch (NumberFormatException e) { return 0; }
+            try {
+                return Integer.parseInt(s.trim());
+            } catch (NumberFormatException e) {
+                return 0;
+            }
         }
 
         /** 新增带 FeatureContext 的版本；旧的无参版本留给 library 规则。 */
@@ -426,6 +430,69 @@ public final class VersionJSONParser {
             public boolean passes() {
                 return Rule.evaluate(rules, FeatureContext.NONE);
             }
+        }
+    }
+
+    /**
+     * 把 loader（NeoForge/Forge/Fabric）的版本 JSON 合并进原版 JSON，生成新版本 JSON。
+     * 规则：
+     * - vanilla 提供资产、下载、类型、日志、javaVersion 兜底；
+     * - loader 提供 mainClass、覆盖 javaVersion；
+     * - libraries = vanilla 的 + loader 的；
+     * - arguments.game / arguments.jvm = vanilla 的 + loader 的；
+     * - 写入 kmcl.minecraftVersion 便于后续 resolveMcVersion。
+     */
+    public static JsonObject mergeLoaderWithVanilla(
+            JsonObject loader, JsonObject vanilla,
+            String instanceId, String mcVersion) {
+        JsonObject merged = new JsonObject();
+
+        copyIfPresent(vanilla, merged, "assetIndex");
+        copyIfPresent(vanilla, merged, "assets");
+        copyIfPresent(vanilla, merged, "downloads");
+        copyIfPresent(vanilla, merged, "type");
+        copyIfPresent(vanilla, merged, "logging");
+        copyIfPresent(vanilla, merged, "javaVersion");
+
+        merged.addProperty("id", instanceId);
+        if (loader.has("mainClass")) merged.add("mainClass", loader.get("mainClass"));
+        if (loader.has("javaVersion")) merged.add("javaVersion", loader.get("javaVersion"));
+
+        JsonArray libs = new JsonArray();
+        if (vanilla.get("libraries") instanceof JsonArray vl) libs.addAll(vl);
+        if (loader.get("libraries") instanceof JsonArray ll) libs.addAll(ll);
+        merged.add("libraries", libs);
+
+        JsonObject args = new JsonObject();
+        args.add("game", mergeArgs(vanilla, loader, "game"));
+        args.add("jvm", mergeArgs(vanilla, loader, "jvm"));
+        merged.add("arguments", args);
+
+        if (vanilla.has("minecraftArguments")) {
+            merged.add("minecraftArguments", vanilla.get("minecraftArguments"));
+        }
+
+        merged.addProperty("kmcl.minecraftVersion", mcVersion);
+        return merged;
+    }
+
+    private static JsonArray mergeArgs(JsonObject a, JsonObject b, String key) {
+        JsonArray out = new JsonArray();
+        addArgs(out, a, key);
+        addArgs(out, b, key);
+        return out;
+    }
+
+    private static void addArgs(JsonArray out, JsonObject src, String key) {
+        if (src.get("arguments") instanceof JsonObject args
+                && args.get(key) instanceof JsonArray arr) {
+            out.addAll(arr);
+        }
+    }
+
+    private static void copyIfPresent(JsonObject src, JsonObject dst, String key) {
+        if (src.has(key) && !src.get(key).isJsonNull()) {
+            dst.add(key, src.get(key));
         }
     }
 

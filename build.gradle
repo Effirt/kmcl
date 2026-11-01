@@ -10,7 +10,7 @@ java {
 	}
 }
 
-version = "0.5.0"
+version = "0.6.7"
 group = "kinastminecraftlauncher"
 
 repositories {

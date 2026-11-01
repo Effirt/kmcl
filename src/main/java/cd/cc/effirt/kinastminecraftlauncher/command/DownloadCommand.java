@@ -1,5 +1,6 @@
 package cd.cc.effirt.kinastminecraftlauncher.command;
 
+import cd.cc.effirt.kinastminecraftlauncher.download.VersionJSONParser;
 import cd.cc.effirt.kinastminecraftlauncher.download.fabric.FabricInstaller;
 import cd.cc.effirt.kinastminecraftlauncher.download.neoforge.NeoForgeInstaller;
 import cd.cc.effirt.util.Log;
@@ -18,6 +19,7 @@ import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Parameters;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 
@@ -98,7 +100,7 @@ public class DownloadCommand implements Callable<Integer> {
         }
     }
 
-    @Command(name = "version", description = "Download Minecraft version")
+    @Command(name = "instance", aliases = {"inst"}, description = "Download Minecraft version")
     static class Version implements Callable<Integer> {
         @Parameters(index = "0", paramLabel = "<minecraftVersion>",
                 description = "Minecraft version id")
@@ -122,22 +124,31 @@ public class DownloadCommand implements Callable<Integer> {
 
         @Override
         public Integer call() {
+            if (name.equals(mcVersion)) {
+                Log.error("Instance name cannot Minecraft version equal");
+                return FAILED;
+            }
+
             try {
                 Log.info("Installing {} version...", mcVersion);
 
+                if (loader != MinecraftLoaderEnum.vanilla) {
+                    ensureVanillaInstalled(mcVersion, retry);
+                }
+
                 Path jsonFile = switch (loader) {
-                    case vanilla -> VersionDownloader.downloadVanillaJson(mcVersion, name);
+                    case vanilla -> VersionDownloader.downloadVanillaJson(mcVersion, name, false);   // ← false
                     case fabric -> FabricInstaller.install(mcVersion, loaderVersion, name);
                     case neoforge -> NeoForgeInstaller.install(mcVersion, loaderVersion, name);
                     default -> throw new UnsupportedLoaderException(loader);
                 };
 
                 if (loader != MinecraftLoaderEnum.neoforge) {
-                    VersionInstaller.installClient(jsonFile, name, retry);
+                    VersionInstaller.installClient(jsonFile, retry);
                 }
-                VersionInstaller.installLibraries(jsonFile, name, retry);
+                VersionInstaller.installLibraries(jsonFile, retry);
                 VersionInstaller.installAssets(jsonFile, retry);
-                Log.info("Successful install instance '{}' (Minecraft {})", name, mcVersion);
+                Log.info("Successfully install instance '{}' (Minecraft {})", name, mcVersion);
                 return SUCCESSFUL;
             } catch (VersionNotFoundException | UnsupportedLoaderException e) {
                 Log.error(e.getMessage());
@@ -146,6 +157,23 @@ public class DownloadCommand implements Callable<Integer> {
                 Log.error("Failed to install '{}' version", mcVersion, e);
                 return FAILED;
             }
+        }
+
+        private static void ensureVanillaInstalled(String mcVersion, int retry) throws IOException {
+            Path vanillaJson = VersionInstaller.versionJson(mcVersion, mcVersion);
+            Path vanillaJar = VersionInstaller.clientJar(mcVersion);
+
+            if (Files.isRegularFile(vanillaJson) && Files.isRegularFile(vanillaJar)) {
+                Log.debug("Vanilla {} already installed, skip", mcVersion);
+                return;
+            }
+
+            Log.info("Vanilla {} not complete, installing base first...", mcVersion);
+            Path downloaded = VersionDownloader.downloadVanillaJson(mcVersion, mcVersion, true);
+            VersionJSONParser.VersionInfo info = VersionJSONParser.parse(downloaded);
+            VersionInstaller.installClient(info, retry);
+            VersionInstaller.installLibraries(info, retry);
+            VersionInstaller.installAssets(downloaded, retry);
         }
     }
 }
