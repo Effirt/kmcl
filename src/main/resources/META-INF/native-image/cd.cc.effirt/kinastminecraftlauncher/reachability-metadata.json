@@ -3,6 +3,11 @@
     {
       "type": "cd.cc.effirt.kinastminecraftlauncher.Main",
       "jniAccessible": true,
+      "fields": [
+        {
+          "name": "instanceName"
+        }
+      ],
       "methods": [
         {
           "name": "main",
@@ -23,8 +28,6 @@
     },
     {
       "type": "cd.cc.effirt.kinastminecraftlauncher.auth.Account",
-      "allDeclaredConstructors": true,
-      "allRecordComponents": true,
       "methods": [
         {
           "name": "<init>",
@@ -124,7 +127,13 @@
       ]
     },
     {
-      "type": "cd.cc.effirt.kinastminecraftlauncher.command.AuthCommand$List"
+      "type": "cd.cc.effirt.kinastminecraftlauncher.command.AuthCommand$List",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
     },
     {
       "type": "cd.cc.effirt.kinastminecraftlauncher.command.AuthCommand$Use",
@@ -141,7 +150,7 @@
       ]
     },
     {
-      "type": "cd.cc.effirt.kinastminecraftlauncher.command.DownloadCommand",
+      "type": "cd.cc.effirt.kinastminecraftlauncher.command.InstanceCommand",
       "fields": [
         {
           "name": "spec"
@@ -155,50 +164,7 @@
       ]
     },
     {
-      "type": "cd.cc.effirt.kinastminecraftlauncher.command.DownloadCommand$List",
-      "fields": [
-        {
-          "name": "filter"
-        },
-        {
-          "name": "help"
-        },
-        {
-          "name": "mode"
-        },
-        {
-          "name": "spec"
-        }
-      ],
-      "methods": [
-        {
-          "name": "<init>",
-          "parameterTypes": []
-        }
-      ]
-    },
-    {
-      "type": "cd.cc.effirt.kinastminecraftlauncher.command.DownloadCommand$List$Filter",
-      "fields": [
-        {
-          "name": "release"
-        },
-        {
-          "name": "snapshot"
-        }
-      ],
-      "methods": [
-        {
-          "name": "<init>",
-          "parameterTypes": []
-        }
-      ]
-    },
-    {
-      "type": "cd.cc.effirt.kinastminecraftlauncher.command.DownloadCommand$List$Mode"
-    },
-    {
-      "type": "cd.cc.effirt.kinastminecraftlauncher.command.DownloadCommand$Version",
+      "type": "cd.cc.effirt.kinastminecraftlauncher.command.InstanceCommand$Create",
       "fields": [
         {
           "name": "loader"
@@ -224,41 +190,10 @@
       ]
     },
     {
-      "type": "cd.cc.effirt.kinastminecraftlauncher.command.InstanceCommand",
+      "type": "cd.cc.effirt.kinastminecraftlauncher.command.InstanceCommand$Delete",
       "fields": [
         {
-          "name": "spec"
-        }
-      ],
-      "methods": [
-        {
-          "name": "<init>",
-          "parameterTypes": []
-        }
-      ]
-    },
-    {
-      "type": "cd.cc.effirt.kinastminecraftlauncher.command.InstanceCommand$List",
-      "fields": [
-        {
-          "name": "help"
-        },
-        {
-          "name": "spec"
-        }
-      ],
-      "methods": [
-        {
-          "name": "<init>",
-          "parameterTypes": []
-        }
-      ]
-    },
-    {
-      "type": "cd.cc.effirt.kinastminecraftlauncher.command.InstanceCommand$Start",
-      "fields": [
-        {
-          "name": "help"
+          "name": "keepData"
         },
         {
           "name": "name"
@@ -272,10 +207,98 @@
       ]
     },
     {
-      "type": "com.aayushatharva.brotli4j.decoder.BrotliInputStream"
+      "type": "cd.cc.effirt.kinastminecraftlauncher.command.InstanceCommand$List",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
     },
     {
-      "type": "com.github.luben.zstd.ZstdInputStream"
+      "type": "cd.cc.effirt.kinastminecraftlauncher.command.InstanceCommand$Rename"
+    },
+    {
+      "type": "cd.cc.effirt.kinastminecraftlauncher.command.VersionCommand",
+      "fields": [
+        {
+          "name": "filter"
+        },
+        {
+          "name": "mode"
+        },
+        {
+          "name": "spec"
+        }
+      ],
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "cd.cc.effirt.kinastminecraftlauncher.command.VersionCommand$Filter",
+      "fields": [
+        {
+          "name": "old"
+        },
+        {
+          "name": "release"
+        },
+        {
+          "name": "snapshot"
+        }
+      ],
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "cd.cc.effirt.kinastminecraftlauncher.command.VersionCommand$Mode",
+      "fields": [
+        {
+          "name": "all"
+        },
+        {
+          "name": "latest"
+        }
+      ],
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "cd.cc.effirt.kinastminecraftlauncher.instance.InstanceInfo",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String",
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "loader",
+          "parameterTypes": []
+        },
+        {
+          "name": "loaderVersion",
+          "parameterTypes": []
+        },
+        {
+          "name": "minecraftVersion",
+          "parameterTypes": []
+        }
+      ]
     },
     {
       "type": "com.google.gson.internal.bind.JavaTimeTypeAdapters",
@@ -370,15 +393,6 @@
       ]
     },
     {
-      "type": "com.sun.crypto.provider.TlsKeyMaterialGenerator",
-      "methods": [
-        {
-          "name": "<init>",
-          "parameterTypes": []
-        }
-      ]
-    },
-    {
       "type": "com.sun.crypto.provider.TlsMasterSecretGenerator",
       "methods": [
         {
@@ -388,7 +402,7 @@
       ]
     },
     {
-      "type": "com.sun.crypto.provider.TlsPrfGenerator$V12",
+      "type": "com.sun.org.apache.xerces.internal.jaxp.DocumentBuilderFactoryImpl",
       "methods": [
         {
           "name": "<init>",
@@ -398,12 +412,6 @@
     },
     {
       "type": "groovy.lang.Closure"
-    },
-    {
-      "type": "io.airlift.compress.v3.zstd.ZstdInputStream"
-    },
-    {
-      "type": "io.airlift.compress.zstd.ZstdInputStream"
     },
     {
       "type": "java.io.Console",
@@ -558,6 +566,15 @@
       "type": "java.time.ZonedDateTime"
     },
     {
+      "type": "java.util.LinkedHashMap",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
       "type": "net.lenni0451.commons.httpclient.executor.HttpClientExecutor",
       "methods": [
         {
@@ -567,9 +584,6 @@
           ]
         }
       ]
-    },
-    {
-      "type": "org.brotli.dec.BrotliInputStream"
     },
     {
       "type": "org.fusesource.jansi.Ansi"
@@ -976,6 +990,15 @@
     },
     {
       "type": "sun.text.resources.cldr.FormatData"
+    },
+    {
+      "type": "sun.util.resources.cldr.TimeZoneNames"
+    },
+    {
+      "type": "sun.util.resources.cldr.TimeZoneNames_en"
+    },
+    {
+      "type": "sun.util.resources.cldr.TimeZoneNames_en_US"
     }
   ],
   "resources": [
@@ -990,6 +1013,9 @@
     },
     {
       "glob": "META-INF/services/java.time.zone.ZoneRulesProvider"
+    },
+    {
+      "glob": "META-INF/services/javax.xml.parsers.DocumentBuilderFactory"
     },
     {
       "glob": "kmcl-log4j2.xml"

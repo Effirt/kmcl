@@ -13,34 +13,35 @@ import java.util.Comparator;
 
 public class VersionInstaller {
 
-    public static Path versionDir(String mcVersion) {
-        return KMCLPath.getKmclPath().resolve("versions").resolve(mcVersion);
+    public static Path versionDir(String instanceName) {
+        return KMCLPath.getKmclPath().resolve("versions").resolve(instanceName);
     }
 
     public static Path versionJson(String instanceName, String mcVersion) {
-        return versionDir(mcVersion).resolve(instanceName + ".json");
+        return versionDir(instanceName).resolve(mcVersion + ".json");
     }
 
-    public static Path clientJar(String mcVersion) {
-        return versionDir(mcVersion).resolve(mcVersion + ".jar");
+    public static Path clientJar(String instanceName, String mcVersion) {
+        return versionDir(instanceName).resolve(mcVersion + ".jar");
     }
 
-    public static Path nativesDir(String mcVersion) {
-        return versionDir(mcVersion).resolve("natives");
+    public static Path nativesDir(String instanceName) {
+        return versionDir(instanceName).resolve("natives");
     }
 
     public static Path assetsDir() {
         return KMCLPath.getKmclPath().resolve("assets");
     }
 
-    // client.jar
+    // ============ client.jar ============
 
-    public static void installClient(Path versionJson, int maxAttempts) throws IOException {
-        installClient(VersionJSONParser.parse(versionJson), maxAttempts);
+    public static void installClient(String instanceName, Path versionJson, int maxAttempts)
+            throws IOException {
+        installClient(instanceName, VersionJSONParser.parse(versionJson), maxAttempts);
     }
 
-    public static void installClient(VersionJSONParser.VersionInfo info, int maxAttempts)
-            throws IOException {
+    public static void installClient(String instanceName, VersionJSONParser.VersionInfo info,
+                                     int maxAttempts) throws IOException {
         var dl = info.downloads();
         if (dl == null || dl.client() == null || dl.client().url() == null)
             throw new IOException("version JSON has no downloads.client for id=" + info.id());
@@ -50,7 +51,7 @@ public class VersionInstaller {
             throw new IOException("version JSON has no mcVersion, cannot resolve jar path");
 
         var art = dl.client();
-        var dest = clientJar(mcVersion);
+        var dest = clientJar(instanceName, mcVersion);
         Files.createDirectories(dest.getParent());
 
         Log.info("Downloading {}.jar...", mcVersion);
@@ -68,26 +69,27 @@ public class VersionInstaller {
 
     // ============ libraries ============
 
-    public static void installLibraries(Path versionJson, int maxAttempts) throws IOException {
-        installLibraries(VersionJSONParser.parse(versionJson), maxAttempts);
+    public static void installLibraries(String instanceName, Path versionJson, int maxAttempts)
+            throws IOException {
+        installLibraries(instanceName, VersionJSONParser.parse(versionJson), maxAttempts);
     }
 
-    public static void installLibraries(VersionJSONParser.VersionInfo info, int maxAttempts)
-            throws IOException {
-        String mcVersion = info.mcVersion();
-        if (mcVersion == null || mcVersion.isBlank())
-            throw new IOException("version JSON has no mcVersion, cannot resolve natives path");
-
+    public static void installLibraries(String instanceName, VersionJSONParser.VersionInfo info,
+                                        int maxAttempts) throws IOException {
         var libsDir = KMCLPath.getKmclPath().resolve("libraries");
-        var nativesDir = nativesDir(mcVersion);   // 共享，按 mcVersion
+        var nativesDir = nativesDir(instanceName);
         Files.createDirectories(libsDir);
 
-        // 清空旧 natives（与原逻辑一致）
         if (Files.exists(nativesDir)) {
             try (var s = Files.walk(nativesDir)) {
                 s.sorted(Comparator.reverseOrder())
                         .filter(p -> !p.equals(nativesDir))
-                        .forEach(p -> { try { Files.deleteIfExists(p); } catch (IOException _) {} });
+                        .forEach(p -> {
+                            try {
+                                Files.deleteIfExists(p);
+                            } catch (IOException _) {
+                            }
+                        });
             }
         }
         Files.createDirectories(nativesDir);
@@ -104,16 +106,13 @@ public class VersionInstaller {
             VersionJSONParser.Artifact art;
             boolean isNativeLib = false;
 
-            // 1.12.2: lib.natives 映射 -> classifiers
             var nativeArt = lib.nativeArtifact();
             if (nativeArt != null && nativeArt.url() != null) {
                 url = nativeArt.url();
                 path = nativeArt.path();
                 size = nativeArt.size();
                 isNativeLib = true;
-            }
-            // 1.13+：maven name 里带 natives-windows 之类的 classifier
-            else if (lib.classifier() != null && lib.classifier().startsWith("natives-")
+            } else if (lib.classifier() != null && lib.classifier().startsWith("natives-")
                     && lib.downloads() != null && lib.downloads().classifiers() != null) {
                 var c = lib.downloads().classifiers().get(lib.classifier());
                 if (c != null && c.url() != null) {
@@ -122,26 +121,19 @@ public class VersionInstaller {
                     size = c.size();
                     isNativeLib = true;
                 }
-            }
-            // 普通库：downloads.artifact
-            else if (lib.downloads() != null && lib.downloads().artifact() != null
+            } else if (lib.downloads() != null && lib.downloads().artifact() != null
                     && lib.downloads().artifact().url() != null) {
                 art = lib.downloads().artifact();
                 url = art.url();
                 path = (art.path() != null && !art.path().isBlank()) ? art.path() : lib.mavenPath();
                 size = art.size();
-                // 1.13+ LWJGL 3 natives 有时走 artifact 形式（path 里含 -natives-）
                 isNativeLib = art.path() != null && art.path().contains("-natives-");
-            }
-            // 老式 url + maven 拼接
-            else if (lib.url() != null && !lib.url().isBlank()
+            } else if (lib.url() != null && !lib.url().isBlank()
                     && lib.groupId() != null && lib.artifactId() != null && lib.version() != null) {
                 String base = lib.url().endsWith("/") ? lib.url() : lib.url() + "/";
                 path = lib.mavenPath();
                 url = base + path;
-            }
-            // 无法解析
-            else {
+            } else {
                 Log.warn("Skip library without resolvable URL: {}", lib.name());
                 skipped++;
                 continue;

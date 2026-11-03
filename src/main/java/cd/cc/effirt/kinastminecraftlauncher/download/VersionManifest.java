@@ -10,7 +10,9 @@ import com.google.gson.JsonParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class VersionManifest {
 
@@ -28,48 +30,7 @@ public class VersionManifest {
     private static JsonObject cache;
     private static long cacheAt;
 
-    /**
-     * Newest entry overall (versions[0], sorted by releaseTime desc).
-     * In practice this is the latest snapshot.
-     */
-    public static String[] getLatest() {
-        JsonObject root = parsed();
-        if (root == null) return null;
-        JsonArray versions = root.getAsJsonArray("versions");
-        if (versions == null || versions.isEmpty()) return null;
-        return toArray(versions.get(0).getAsJsonObject());
-    }
-
-    /** Latest stable release — the entry named by latest.release. */
-    public static String[] getRelease() {
-        return latestEntry("release");
-    }
-
-    /** Latest snapshot — the entry named by latest.snapshot. */
-    public static String[] getSnapshot() {
-        return latestEntry("snapshot");
-    }
-
     // --- internals -----------------------------------------------------
-
-    private static String[] latestEntry(String key) {
-        JsonObject root = parsed();
-        if (root == null) return null;
-
-        String id;
-        try {
-            id = root.getAsJsonObject("latest").get(key).getAsString();
-        } catch (RuntimeException e) {
-            Log.error("Manifest missing latest." + key, e);
-            return null;
-        }
-
-        for (JsonElement el : root.getAsJsonArray("versions")) {
-            JsonObject v = el.getAsJsonObject();
-            if (id.equals(v.get("id").getAsString())) return toArray(v);
-        }
-        return null;
-    }
 
     private static String[] toArray(JsonObject v) {
         try {
@@ -126,37 +87,58 @@ public class VersionManifest {
         if (root == null) return null;
         JsonArray versions = root.getAsJsonArray("versions");
         if (versions == null) return null;
-        return collect(versions, null);
-    }
-
-    /** Every entry with type == "release", newest first. */
-    public static String[][] getReleaseAll() {
-        return byType("release");
-    }
-
-    /** Every entry with type == "snapshot", newest first. */
-    public static String[][] getSnapshotAll() {
-        return byType("snapshot");
+        return collect(versions);
     }
 
     // --- internals -----------------------------------------------------
 
-    private static String[][] byType(String type) {
+    /** Converts versions[] to String[][]; type==null means "no filter". */
+    private static String[][] collect(JsonArray versions) {
+        List<String[]> out = new ArrayList<>(versions.size());
+        for (JsonElement el : versions) {
+            JsonObject v = el.getAsJsonObject();
+            String[] row = toArray(v);
+            if (row != null) out.add(row);   // skip malformed entries
+        }
+        return out.toArray(new String[0][]);
+    }
+
+    /** 所有 type 属于 types 的版本，releaseTime 降序（保持 versions[] 顺序）。 */
+    public static String[][] getAllTyped(Set<String> types) {
+        if (types == null || types.isEmpty()) return new String[0][];
         JsonObject root = parsed();
         if (root == null) return null;
         JsonArray versions = root.getAsJsonArray("versions");
         if (versions == null) return null;
-        return collect(versions, type);
-    }
 
-    /** Converts versions[] to String[][]; type==null means "no filter". */
-    private static String[][] collect(JsonArray versions, String type) {
         List<String[]> out = new ArrayList<>(versions.size());
         for (JsonElement el : versions) {
             JsonObject v = el.getAsJsonObject();
-            if (type != null && !type.equals(str(v, "type"))) continue;
+            if (!types.contains(str(v, "type"))) continue;
             String[] row = toArray(v);
-            if (row != null) out.add(row);   // skip malformed entries
+            if (row != null) out.add(row);
+        }
+        return out.toArray(new String[0][]);
+    }
+
+    /** 每个 type 取 versions[] 中第一条（即 releaseTime 最新的那条）。 */
+    public static String[][] getLatestTyped(Set<String> types) {
+        if (types == null || types.isEmpty()) return new String[0][];
+        JsonObject root = parsed();
+        if (root == null) return null;
+        JsonArray versions = root.getAsJsonArray("versions");
+        if (versions == null) return null;
+
+        Set<String> seen = new HashSet<>();
+        List<String[]> out = new ArrayList<>();
+        for (JsonElement el : versions) {
+            JsonObject v = el.getAsJsonObject();
+            String t = str(v, "type");
+            if (t == null || !types.contains(t)) continue;
+            if (!seen.add(t)) continue;
+            String[] row = toArray(v);
+            if (row != null) out.add(row);
+            if (seen.size() == types.size()) break;
         }
         return out.toArray(new String[0][]);
     }

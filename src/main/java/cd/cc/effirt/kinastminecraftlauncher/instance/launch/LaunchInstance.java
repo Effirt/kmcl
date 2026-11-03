@@ -1,4 +1,4 @@
-package cd.cc.effirt.kinastminecraftlauncher.launch;
+package cd.cc.effirt.kinastminecraftlauncher.instance.launch;
 
 import cd.cc.effirt.kinastminecraftlauncher.KMCLPath;
 import cd.cc.effirt.kinastminecraftlauncher.VersionProvider;
@@ -10,6 +10,9 @@ import cd.cc.effirt.kinastminecraftlauncher.download.VersionJSONParser;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionJSONParser.Argument;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionJSONParser.Library;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionJSONParser.VersionInfo;
+import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceInfo;
+import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceRegistry;
+import cd.cc.effirt.kinastminecraftlauncher.util.JavaFinder;
 import cd.cc.effirt.util.Log;
 import net.lenni0451.commons.httpclient.HttpClient;
 import net.raphimc.minecraftauth.MinecraftAuth;
@@ -25,7 +28,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 public class LaunchInstance {
     private static final Path DEFAULT_MC_ROOT = KMCLPath.getKmclPath();
@@ -34,18 +36,26 @@ public class LaunchInstance {
     private static final String LOG4J_FILENAME = "kmcl-client.xml";
 
     public static int launch(String instanceName, Account acc) throws IOException {
-        // 1. 反查 mcVersion + 读 JSON
-        Path jsonFile = resolveInstanceJson(instanceName);
+        // 1. 从 registry 反查 mcVersion / loader
+        InstanceInfo instInfo = InstanceRegistry.get(instanceName);
+        if (instInfo == null) {
+            throw new IOException("Instance not found: " + instanceName);
+        }
+        String mcVersion = instInfo.minecraftVersion();
+        if (mcVersion == null || mcVersion.isBlank()) {
+            throw new IOException("Instance '" + instanceName + "' has no minecraftVersion in registry");
+        }
+
+        Path jsonFile = VersionInstaller.versionJson(instanceName, mcVersion);
+        if (!Files.isRegularFile(jsonFile)) {
+            throw new IOException("Instance JSON not found: " + jsonFile);
+        }
         VersionInfo info = VersionJSONParser.parse(jsonFile);
         if (info.mainClass() == null || info.mainClass().isBlank()) {
             throw new IOException("version JSON has no mainClass: " + jsonFile);
         }
-        String mcVersion = info.mcVersion();
-        if (mcVersion == null || mcVersion.isBlank()) {
-            throw new IOException("Instance '" + instanceName + "' has no kmcl.minecraftVersion");
-        }
 
-        // 2. 实例目录 & 配置（配置放 instances/<name>，避免多实例冲突）
+        // 2. 实例目录 & 配置
         Path gameDir = VersionInstaller.instanceGameDir(instanceName);
         Files.createDirectories(gameDir);
         InstanceConfig.load(gameDir);
@@ -56,8 +66,8 @@ public class LaunchInstance {
         String minMemory = InstanceConfig.getMinMemory();
 
         // 3. 变量表 & classpath
-        Map<String, String> vars = buildVars(instanceName, mcVersion, gameDir, info, acc);
-        List<String> classpath = buildClasspath(mcVersion, info);
+        Map<String, String> vars = buildVars(instanceName, gameDir, info, acc);
+        List<String> classpath = buildClasspath(instanceName, mcVersion, info, instInfo);
         vars.put("classpath", String.join(File.pathSeparator, classpath));
 
         List<String> cmd = new ArrayList<>();
@@ -82,7 +92,6 @@ public class LaunchInstance {
                     cmd.add(substitute(raw, vars));
                 }
             }
-            // modern 分支的 jvm 参数处理
             for (Argument a : info.arguments().jvm()) {
                 if (!a.passes()) continue;
                 for (String raw : argValues(a)) {
@@ -132,7 +141,8 @@ public class LaunchInstance {
         if (arguments != null && !arguments.isEmpty()) appendArgs(cmd, arguments);
 
         // 5. 启动
-        Log.info("Launching '{}' (Minecraft {})...", instanceName, mcVersion);
+        Log.info("Launching '{}' (Minecraft {}, {})...",
+                instanceName, mcVersion, loaderLabel(instInfo));
 
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.directory(gameDir.toFile());
@@ -158,22 +168,14 @@ public class LaunchInstance {
 
     // ==================== helpers ====================
 
-    /** 扫描 versions/*\/<instanceName>.json 找到实例 JSON。 */
-    private static Path resolveInstanceJson(String instanceName) throws IOException {
-        Path versions = KMCLPath.getKmclPath().resolve("versions");
-        if (!Files.isDirectory(versions)) {
-            throw new IOException("versions/ not found: " + versions);
-        }
-        try (Stream<Path> s = Files.list(versions)) {
-            return s.filter(Files::isDirectory)
-                    .map(d -> d.resolve(instanceName + ".json"))
-                    .filter(Files::isRegularFile)
-                    .findFirst()
-                    .orElseThrow(() -> new IOException("Instance not found: " + instanceName));
-        }
+    private static String loaderLabel(InstanceInfo info) {
+        String l = info.loader();
+        if (l == null || l.equals("vanilla")) return "vanilla";
+        String v = info.loaderVersion();
+        return v == null ? l : l + " " + v;
     }
 
-    private static Map<String, String> buildVars(String instanceName, String mcVersion,
+    private static Map<String, String> buildVars(String instanceName,
                                                  Path gameDir, VersionInfo info, Account acc)
             throws IOException {
         Map<String, String> v = new HashMap<>();
@@ -225,13 +227,13 @@ public class LaunchInstance {
             v.put("user_properties", "{}");
         }
 
-        v.put("version_name", instanceName);   // 游戏内显示实例名
+        v.put("version_name", instanceName);
         v.put("version_type", info.type() == null ? "release" : info.type());
         v.put("game_directory", gameDir.toString());
         v.put("assets_root", VersionInstaller.assetsDir().toString());
         v.put("game_assets", VersionInstaller.assetsDir().resolve("virtual/legacy").toString());
         v.put("assets_index_name", info.assets() == null ? "legacy" : info.assets());
-        v.put("natives_directory", VersionInstaller.nativesDir(mcVersion).toString());
+        v.put("natives_directory", VersionInstaller.nativesDir(instanceName).toString());
         v.put("launcher_name", "kmcl");
         v.put("launcher_version", VersionProvider.getVer());
         v.put("library_directory", DEFAULT_MC_ROOT.resolve("libraries").toString());
@@ -241,7 +243,8 @@ public class LaunchInstance {
         return v;
     }
 
-    private static List<String> buildClasspath(String mcVersion, VersionInfo info) {
+    private static List<String> buildClasspath(String instanceName, String mcVersion,
+                                               VersionInfo info, InstanceInfo instInfo) {
         Set<String> cp = new LinkedHashSet<>();
         Path libsDir = DEFAULT_MC_ROOT.resolve("libraries");
         boolean modern = info.arguments() != null;
@@ -256,11 +259,15 @@ public class LaunchInstance {
             }
         }
 
-        Path clientJar = VersionInstaller.clientJar(mcVersion);   // versions/<mcVersion>/<mcVersion>.jar
-        if (Files.isRegularFile(clientJar)) {
-            cp.add(clientJar.toString());
-        } else {
-            Log.warn("Client jar not found: {}", clientJar);
+        // NeoForge 的 client 类来自 libraries (net.minecraft:client:*:srg)，
+        // 实例目录本来就没有 <mcVersion>.jar，跳过即可。
+        if (!"neoforge".equals(instInfo.loader())) {
+            Path clientJar = VersionInstaller.clientJar(instanceName, mcVersion);
+            if (Files.isRegularFile(clientJar)) {
+                cp.add(clientJar.toString());
+            } else {
+                Log.warn("Client jar not found: {}", clientJar);
+            }
         }
         return new ArrayList<>(cp);
     }
@@ -290,8 +297,8 @@ public class LaunchInstance {
     private static Path resolveJava(VersionInfo info) {
         int required = (info.javaVersion() != null && info.javaVersion().majorVersion() > 0)
                 ? info.javaVersion().majorVersion() : 21;
-        String javaName = System.getProperty("os.name").toLowerCase(Locale.ROOT)
-                .contains("win") ? "java.exe" : "java";
+        String javaName = JavaFinder.javaExeName();
+
         String home = System.getenv("JAVA_HOME");
         if (home != null && !home.isBlank()) {
             Path c = Path.of(home, "bin", javaName);
@@ -300,6 +307,7 @@ public class LaunchInstance {
                 return c;
             }
         }
+
         String path = System.getenv("PATH");
         if (path != null) {
             for (String dir : path.split(File.pathSeparator)) {
@@ -311,9 +319,22 @@ public class LaunchInstance {
                 }
             }
         }
-        Path fallback = Path.of(System.getProperty("java.home"), "bin", javaName);
-        Log.warn("No Java{} found, falling back to {}", required, fallback);
-        return fallback;
+
+        // 找不到匹配版本时，退而求其次：用 findAny 拿个能跑的 java
+        try {
+            Path fallback = JavaFinder.findAny();
+            Log.warn("No Java{} found, falling back to {}", required, fallback);
+            return fallback;
+        } catch (IOException e) {
+            Log.warn("No java at all found: {}", e.getMessage());
+            // 最后尝试 java.home（JVM 模式才有意义，native-image 下会抛）
+            String sys = System.getProperty("java.home");
+            if (sys != null && !sys.isBlank()) {
+                return Path.of(sys, "bin", javaName);
+            }
+            throw new IllegalStateException(
+                    "No Java runtime found. Please install JDK or set JAVA_HOME.");
+        }
     }
 
     private static int majorVersion(Path javaPath) {
@@ -396,9 +417,10 @@ public class LaunchInstance {
 
     /**
      * 确保 -DignoreList 包含 <mcVersion>.jar。
-     * NeoForge 的 version.json 里写的是 ${version_name}.jar，
-     * 而 ${version_name} 是 instanceName，与实际 client jar 文件名（<mcVersion>.jar）不一致，
-     * 导致 client jar 被 FML 当成模块加载，与 minecraft 模块冲突。
+     * NeoForge 的 version.json 里写的是 ${version_name}.jar（= <instanceName>.jar），
+     * 而实际 client jar（若存在）文件名是 <mcVersion>.jar。两者都不在 classpath 上，
+     * 但 FML 会把 ignoreList 里的文件名当 Java 模块尝试加载——只要文件不存在就无害，
+     * 文件存在（如旧版本下载残留）则会被忽略，避免与 minecraft 模块冲突。
      */
     private static String fixIgnoreList(String raw, String mcVersion) {
         String prefix = "-DignoreList=";

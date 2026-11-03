@@ -5,10 +5,9 @@ import module java.base;
 import cd.cc.effirt.kinastminecraftlauncher.KMCLPath;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionInstaller;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionJSONParser;
-import cd.cc.effirt.kinastminecraftlauncher.util.FilesUtil;
-import cd.cc.effirt.kinastminecraftlauncher.util.Http;
-import cd.cc.effirt.kinastminecraftlauncher.util.ProgressBar;
-import cd.cc.effirt.kinastminecraftlauncher.util.XmlUtil;
+import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceInfo;
+import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceRegistry;
+import cd.cc.effirt.kinastminecraftlauncher.util.*;
 import cd.cc.effirt.util.Log;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -154,7 +153,7 @@ public class NeoForgeInstaller {
             }
         }
         if (!patched) {
-            Log.warn("No URL patched in installer jar — mirror may not take effect");
+            Log.warn("No URL patched in installer jar - mirror may not take effect");
         }
         return out;
     }
@@ -169,26 +168,20 @@ public class NeoForgeInstaller {
         if (!Files.exists(profiles)) {
             Log.info("Creating launcher_profiles.json...");
             Files.writeString(profiles, """
-                    {
-                      "profiles": {},
-                      "settings": {},
-                      "version": 3
-                    }
-                    """, StandardCharsets.UTF_8);
+                {
+                  "profiles": {},
+                  "settings": {},
+                  "version": 3
+                }
+                """, StandardCharsets.UTF_8);
         }
 
-        String javaName = System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win")
-                ? "java.exe" : "java";
-        Path java = Path.of(System.getProperty("java.home"), "bin", javaName);
-        if (!Files.isRegularFile(java)) {
-            throw new IOException("Cannot find java at " + java);
-        }
+        Path java = JavaFinder.findAny();
+        Log.info("Running NeoForge installer with '{}'...", java);
 
-        Log.info("Running NeoForge installer...");
         ProcessBuilder pb = new ProcessBuilder(
                 java.toAbsolutePath().toString(),
                 "-Dhttp.agent=curl/8.21.0",
-                "-XX:+UseCompactObjectHeaders",
                 "-jar", installer.toAbsolutePath().toString(),
                 "--installClient", kmclRoot.toAbsolutePath().toString()
         );
@@ -227,8 +220,8 @@ public class NeoForgeInstaller {
         return dir;
     }
 
-    private static Path mapToInstance(Path installedDir, String instanceName, String mcVersion, String loaderVersion)
-            throws IOException {
+    private static Path mapToInstance(Path installedDir, String instanceName,
+                                      String mcVersion, String loaderVersion) throws IOException {
         String installedName = installedDir.getFileName().toString();
         Path installedJson = installedDir.resolve(installedName + ".json");
 
@@ -242,43 +235,39 @@ public class NeoForgeInstaller {
 
         JsonObject vanillaJson = loadVanillaJson(mcVersion);
         JsonObject merged = VersionJSONParser.mergeLoaderWithVanilla(
-                neoforgeJson, vanillaJson, instanceName, mcVersion);
-        merged.addProperty("kmcl.loader", "neoforge");
-        merged.addProperty("kmcl.loaderVersion", loaderVersion);
-
-        if (instanceName.equals(installedName)) {
-            Files.createDirectories(installedDir.resolve("natives"));
-            Files.writeString(installedJson, merged.toString(), StandardCharsets.UTF_8);
-            return installedJson;
-        }
+                neoforgeJson, vanillaJson, instanceName);
 
         Path targetDir = VersionInstaller.versionDir(instanceName);
-        if (Files.exists(targetDir)) FilesUtil.deleteRecursively(targetDir);
-        Files.createDirectories(targetDir.getParent());
-        Files.move(installedDir, targetDir, StandardCopyOption.REPLACE_EXISTING);
+        if (!installedDir.equals(targetDir)) {
+            if (Files.exists(targetDir)) FilesUtil.deleteRecursively(targetDir);
+            Files.createDirectories(targetDir.getParent());
+            Files.move(installedDir, targetDir, StandardCopyOption.REPLACE_EXISTING);
+        }
 
-        Path targetJson = targetDir.resolve(instanceName + ".json");
+        // 删除 installer 生成的 json
         Path oldJson = targetDir.resolve(installedName + ".json");
-        if (!oldJson.equals(targetJson) && Files.exists(oldJson)) {
-            Files.deleteIfExists(oldJson);
+        if (Files.exists(oldJson)) Files.deleteIfExists(oldJson);
+
+        // 把 installer 生成的 jar 重命名为 <mcVersion>.jar
+        Path oldJar = targetDir.resolve(installedName + ".jar");
+        Path newJar = targetDir.resolve(mcVersion + ".jar");
+        if (Files.exists(oldJar) && !oldJar.equals(newJar)) {
+            Files.deleteIfExists(newJar);
+            Files.move(oldJar, newJar, StandardCopyOption.REPLACE_EXISTING);
         }
 
         Files.createDirectories(targetDir.resolve("natives"));
+
+        Path targetJson = targetDir.resolve(mcVersion + ".json");
         Files.writeString(targetJson, merged.toString(), StandardCharsets.UTF_8);
+
+        InstanceRegistry.put(instanceName, new InstanceInfo(mcVersion, "neoforge", loaderVersion));
         return targetJson;
     }
 
     private static JsonObject loadVanillaJson(String mcVersion) throws IOException {
-        Path vanillaJson = KMCLPath.getKmclPath()
-                .resolve("versions").resolve(mcVersion).resolve(mcVersion + ".json");
-        if (!Files.isRegularFile(vanillaJson)) {
-            throw new IOException("Vanilla version JSON not found: " + vanillaJson);
-        }
-        try {
-            return JsonParser.parseString(
-                    Files.readString(vanillaJson, StandardCharsets.UTF_8)).getAsJsonObject();
-        } catch (RuntimeException e) {
-            throw new IOException("Malformed vanilla version JSON: " + vanillaJson, e);
-        }
+        // 不再依赖本地已安装的 vanilla JSON，直接从 Mojang 获取
+        return cd.cc.effirt.kinastminecraftlauncher.download.VersionDownloader
+                .fetchVanillaJson(mcVersion);
     }
 }

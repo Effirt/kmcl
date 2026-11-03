@@ -20,15 +20,19 @@ public final class VersionJSONParser {
     // =================== 入口 ===================
 
     public static VersionInfo parse(Path file) throws IOException {
+        String fn = file.getFileName().toString();
+        String mcVersion = fn.endsWith(".json")
+                ? fn.substring(0, fn.length() - ".json".length())
+                : null;
         try (var r = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
-            return parse(JsonParser.parseReader(r).getAsJsonObject());
+            return parse(JsonParser.parseReader(r).getAsJsonObject(), mcVersion);
         } catch (JsonParseException e) {
             Log.error("Malformed version JSON: {}", file, e);
             throw e;
         }
     }
 
-    public static VersionInfo parse(JsonObject root) {
+    public static VersionInfo parse(JsonObject root, String mcVersion) {
         var loggingRoot = root.getAsJsonObject("logging");
         var loggingClient = loggingRoot == null ? null
                 : Logging.of(loggingRoot.getAsJsonObject("client"));
@@ -38,7 +42,7 @@ public final class VersionJSONParser {
                 str(root, "mainClass"),
                 str(root, "assets"),
                 str(root, "minecraftArguments"),
-                resolveMcVersion(root),
+                mcVersion != null ? mcVersion : resolveMcVersion(root),
                 AssetIndex.of(root.getAsJsonObject("assetIndex")),
                 Downloads.of(root.getAsJsonObject("downloads")),
                 JavaVersion.of(root.getAsJsonObject("javaVersion")),
@@ -49,12 +53,8 @@ public final class VersionJSONParser {
     }
 
     private static String resolveMcVersion(JsonObject root) {
-        var kmcl = root.get("kmcl.minecraftVersion");
-        if (kmcl != null && !kmcl.isJsonNull()) return kmcl.getAsString();
-
         var inherits = root.get("inheritsFrom");
         if (inherits != null && !inherits.isJsonNull()) return inherits.getAsString();
-
         return str(root, "id");
     }
 
@@ -433,18 +433,8 @@ public final class VersionJSONParser {
         }
     }
 
-    /**
-     * 把 loader（NeoForge/Forge/Fabric）的版本 JSON 合并进原版 JSON，生成新版本 JSON。
-     * 规则：
-     * - vanilla 提供资产、下载、类型、日志、javaVersion 兜底；
-     * - loader 提供 mainClass、覆盖 javaVersion；
-     * - libraries = vanilla 的 + loader 的；
-     * - arguments.game / arguments.jvm = vanilla 的 + loader 的；
-     * - 写入 kmcl.minecraftVersion 便于后续 resolveMcVersion。
-     */
     public static JsonObject mergeLoaderWithVanilla(
-            JsonObject loader, JsonObject vanilla,
-            String instanceId, String mcVersion) {
+            JsonObject loader, JsonObject vanilla, String instanceId) {
         JsonObject merged = new JsonObject();
 
         copyIfPresent(vanilla, merged, "assetIndex");
@@ -471,8 +461,6 @@ public final class VersionJSONParser {
         if (vanilla.has("minecraftArguments")) {
             merged.add("minecraftArguments", vanilla.get("minecraftArguments"));
         }
-
-        merged.addProperty("kmcl.minecraftVersion", mcVersion);
         return merged;
     }
 

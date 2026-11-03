@@ -1,4 +1,4 @@
-package cd.cc.effirt.kinastminecraftlauncher.launch;
+package cd.cc.effirt.kinastminecraftlauncher.instance.launch;
 
 import cd.cc.effirt.util.Log;
 

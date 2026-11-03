@@ -1,5 +1,6 @@
 package cd.cc.effirt.kinastminecraftlauncher.auth;
 
+import cd.cc.effirt.kinastminecraftlauncher.KMCLPath;
 import cd.cc.effirt.util.Log;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -141,5 +142,16 @@ public class AccountStorage {
 
     public void clearCurrent() throws IOException {
         Files.deleteIfExists(dir.resolve(CURRENT_FILE));
+    }
+
+    public static Account getAccount() throws IOException {
+        AccountStorage storage = new AccountStorage(KMCLPath.getKmclPath().resolve("accounts"));
+
+        String targetName = storage.getCurrent()
+                .orElseThrow(() -> new IllegalArgumentException("No account specified"));
+
+        return storage.load(targetName)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Unknown account: " + targetName));
     }
 }

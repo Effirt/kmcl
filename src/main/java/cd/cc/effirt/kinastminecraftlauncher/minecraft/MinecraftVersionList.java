@@ -4,35 +4,9 @@ import cd.cc.effirt.util.Log;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionManifest;
 import cd.cc.effirt.util.Table;
 
+import java.util.Set;
+
 public final class MinecraftVersionList {
-
-    private static final String[] HEADERS = { "ID", "Type", "Release Time" };
-
-    private MinecraftVersionList() {}
-
-    /** 全部版本，最新在前（对应命令的 -a/--all）。 */
-    public static void printAll() {
-        print(VersionManifest.getAll());
-    }
-
-    /** 打印单条版本（null 表示获取失败）。 */
-    public static void printSingle(String[] row) {
-        if (row == null) {
-            Log.error("Failed to fetch version manifest from Mojang.");
-            return;
-        }
-        print(new String[][]{ row });
-    }
-
-    /** 只打印正式版（release）。 */
-    public static void printRelease() {
-        print(VersionManifest.getReleaseAll());
-    }
-
-    /** 只打印快照（snapshot）。 */
-    public static void printSnapshot() {
-        print(VersionManifest.getSnapshotAll());
-    }
 
     public static void print(String[][] rows) {
         if (rows == null) {
@@ -53,5 +27,15 @@ public final class MinecraftVersionList {
             );
         }
         IO.println(table.render());
+    }
+
+    /** 按 type 集合打印全部匹配项（-a）。 */
+    public static void printByTypes(Set<String> types) {
+        print(VersionManifest.getAllTyped(types));
+    }
+
+    /** 按 type 集合打印每类最新一条（-l）。 */
+    public static void printLatestByTypes(Set<String> types) {
+        print(VersionManifest.getLatestTyped(types));
     }
 }

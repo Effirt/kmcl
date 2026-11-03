@@ -78,9 +78,6 @@ public class DownloadBatch {
         try (var pb = new ProgressBar()) {
             pb.setTodo(total);
             pb.start();
-            if (skipped > 0) {
-                pb.finish();
-            }
             if (toDo.isEmpty()) {
                 pb.finish();
                 return;
@@ -98,7 +95,7 @@ public class DownloadBatch {
                             }
                             pb.setCustomText(t.dest().getFileName().toString());
                             pb.setDone(done.incrementAndGet());
-                        } catch (InterruptedException ie) {
+                        } catch (InterruptedException _) {
                             Thread.currentThread().interrupt();
                         } catch (Exception e) {
                             errors.add(e);
