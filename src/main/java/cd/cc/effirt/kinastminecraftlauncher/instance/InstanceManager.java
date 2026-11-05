@@ -12,15 +12,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 
-public final class InstanceManager {
+public class InstanceManager {
 
     public static void rename(String oldName, String newName) throws IOException {
+        Log.info("Renaming '{}' to '{}'...", oldName, newName);
         if (oldName.equals(newName)) {
             Log.info("Nothing to rename");
             return;
         }
-        Map<String, InstanceInfo> all = InstanceRegistry.loadAll();
-        InstanceInfo info = all.get(oldName);
+        Map<String, InstanceInfoRecord> all = InstanceRegistry.loadAll();
+        InstanceInfoRecord info = all.get(oldName);
         if (info == null) throw new IOException("Instance not found: " + oldName);
         if (all.containsKey(newName)) {
             throw new IOException("Instance already exists: " + newName);
@@ -59,11 +60,12 @@ public final class InstanceManager {
 
         InstanceRegistry.remove(oldName);
         InstanceRegistry.put(newName, info);
-        Log.info("Renamed '{}' to '{}'", oldName, newName);
+        Log.info("Successfully rename '{}' to '{}'...", oldName, newName);
     }
 
     public static void delete(String name, boolean keepData) throws IOException {
-        Map<String, InstanceInfo> all = InstanceRegistry.loadAll();
+        Log.info("Deleting '{}'...", name);
+        Map<String, InstanceInfoRecord> all = InstanceRegistry.loadAll();
         if (!all.containsKey(name)) throw new IOException("Instance not found: " + name);
 
         Path versionDir = VersionInstaller.versionDir(name);
@@ -79,6 +81,6 @@ public final class InstanceManager {
         }
 
         InstanceRegistry.remove(name);
-        Log.info("Deleted instance '{}'{}", name, keepData ? " (data kept)" : "");
+        Log.info("Successfully delete instance '{}'{}", name, keepData ? " (data kept)" : "");
     }
 }

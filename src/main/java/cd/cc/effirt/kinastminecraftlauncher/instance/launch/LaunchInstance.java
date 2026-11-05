@@ -10,7 +10,7 @@ import cd.cc.effirt.kinastminecraftlauncher.download.VersionJSONParser;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionJSONParser.Argument;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionJSONParser.Library;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionJSONParser.VersionInfo;
-import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceInfo;
+import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceInfoRecord;
 import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceRegistry;
 import cd.cc.effirt.kinastminecraftlauncher.util.JavaFinder;
 import cd.cc.effirt.util.Log;
@@ -37,7 +37,7 @@ public class LaunchInstance {
 
     public static int launch(String instanceName, Account acc) throws IOException {
         // 1. 从 registry 反查 mcVersion / loader
-        InstanceInfo instInfo = InstanceRegistry.get(instanceName);
+        InstanceInfoRecord instInfo = InstanceRegistry.get(instanceName);
         if (instInfo == null) {
             throw new IOException("Instance not found: " + instanceName);
         }
@@ -81,6 +81,8 @@ public class LaunchInstance {
 
         boolean modern = info.arguments() != null;
 
+        if (jvmArguments != null && !jvmArguments.isEmpty()) appendArgs(cmd, jvmArguments);
+
         // 4.1 JVM 参数
         if (modern) {
             for (Argument a : info.arguments().defaultUserJvm()) {
@@ -120,9 +122,9 @@ public class LaunchInstance {
             }
         }
 
-        if (jvmArguments != null && !jvmArguments.isEmpty()) appendArgs(cmd, jvmArguments);
-
         cmd.add(info.mainClass());
+
+        if (arguments != null && !arguments.isEmpty()) appendArgs(cmd, arguments);
 
         // 4.3 Game 参数
         if (modern) {
@@ -137,8 +139,6 @@ public class LaunchInstance {
                 if (!tok.isEmpty()) cmd.add(substitute(tok, vars));
             }
         }
-
-        if (arguments != null && !arguments.isEmpty()) appendArgs(cmd, arguments);
 
         // 5. 启动
         Log.info("Launching '{}' (Minecraft {}, {})...",
@@ -168,7 +168,7 @@ public class LaunchInstance {
 
     // ==================== helpers ====================
 
-    private static String loaderLabel(InstanceInfo info) {
+    private static String loaderLabel(InstanceInfoRecord info) {
         String l = info.loader();
         if (l == null || l.equals("vanilla")) return "vanilla";
         String v = info.loaderVersion();
@@ -244,7 +244,7 @@ public class LaunchInstance {
     }
 
     private static List<String> buildClasspath(String instanceName, String mcVersion,
-                                               VersionInfo info, InstanceInfo instInfo) {
+                                               VersionInfo info, InstanceInfoRecord instInfo) {
         Set<String> cp = new LinkedHashSet<>();
         Path libsDir = DEFAULT_MC_ROOT.resolve("libraries");
         boolean modern = info.arguments() != null;
@@ -320,14 +320,12 @@ public class LaunchInstance {
             }
         }
 
-        // 找不到匹配版本时，退而求其次：用 findAny 拿个能跑的 java
         try {
             Path fallback = JavaFinder.findAny();
             Log.warn("No Java{} found, falling back to {}", required, fallback);
             return fallback;
         } catch (IOException e) {
             Log.warn("No java at all found: {}", e.getMessage());
-            // 最后尝试 java.home（JVM 模式才有意义，native-image 下会抛）
             String sys = System.getProperty("java.home");
             if (sys != null && !sys.isBlank()) {
                 return Path.of(sys, "bin", javaName);

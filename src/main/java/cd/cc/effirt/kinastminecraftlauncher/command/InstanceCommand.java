@@ -7,7 +7,7 @@ import cd.cc.effirt.kinastminecraftlauncher.download.fabric.FabricInstaller;
 import cd.cc.effirt.kinastminecraftlauncher.download.neoforge.NeoForgeInstaller;
 import cd.cc.effirt.kinastminecraftlauncher.exception.UnsupportedLoaderException;
 import cd.cc.effirt.kinastminecraftlauncher.exception.VersionNotFoundException;
-import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceInfo;
+import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceInfoRecord;
 import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceList;
 import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceManager;
 import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceRegistry;
@@ -55,7 +55,7 @@ public class InstanceCommand implements Callable<Integer> {
 
     // ==================== create ====================
 
-    @Command(name = "create", description = "Create a new instance")
+    @Command(name = "add", description = "Add a new instance")
     static class Create implements Callable<Integer> {
         @Parameters(index = "0", paramLabel = "<instanceName>", description = "Instance name")
         String name;
@@ -90,7 +90,7 @@ public class InstanceCommand implements Callable<Integer> {
                 Path jsonFile = switch (loader) {
                     case vanilla -> {
                         Path p = VersionDownloader.downloadVanillaJson(mcVersion, name);
-                        InstanceRegistry.put(name, new InstanceInfo(mcVersion, "vanilla", null));
+                        InstanceRegistry.put(name, new InstanceInfoRecord(mcVersion, "vanilla", null));
                         yield p;
                     }
                     case fabric -> FabricInstaller.install(mcVersion, loaderVersion, name);
@@ -146,7 +146,7 @@ public class InstanceCommand implements Callable<Integer> {
         String name;
 
         @Option(names = {"--keep-data"},
-                description = "Keep instances/<name>/ (saves, configs, mods)")
+                description = "Keep instances data")
         boolean keepData;
 
         @Override

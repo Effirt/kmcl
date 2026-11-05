@@ -24,36 +24,36 @@ public final class InstanceRegistry {
 
     private InstanceRegistry() {}
 
-    public static Map<String, InstanceInfo> loadAll() throws IOException {
+    public static Map<String, InstanceInfoRecord> loadAll() throws IOException {
         Path f = KMCLPath.getKmclPath().resolve("instances.json");
         if (!Files.exists(f)) return new LinkedHashMap<>();
         String json = Files.readString(f, StandardCharsets.UTF_8);
         if (json.isBlank()) return new LinkedHashMap<>();
         try {
-            Map<String, InstanceInfo> map = GSON.fromJson(json,
-                    new TypeToken<LinkedHashMap<String, InstanceInfo>>() {}.getType());
+            Map<String, InstanceInfoRecord> map = GSON.fromJson(json,
+                    new TypeToken<LinkedHashMap<String, InstanceInfoRecord>>() {}.getType());
             return map == null ? new LinkedHashMap<>() : map;
         } catch (JsonParseException e) {
             throw new IOException("Malformed instances.json", e);
         }
     }
 
-    public static InstanceInfo get(String instanceName) throws IOException {
+    public static InstanceInfoRecord get(String instanceName) throws IOException {
         return loadAll().get(instanceName);
     }
 
-    public static void put(String instanceName, InstanceInfo info) throws IOException {
-        Map<String, InstanceInfo> all = loadAll();
+    public static void put(String instanceName, InstanceInfoRecord info) throws IOException {
+        Map<String, InstanceInfoRecord> all = loadAll();
         all.put(instanceName, info);
         save(all);
     }
 
     public static void remove(String instanceName) throws IOException {
-        Map<String, InstanceInfo> all = loadAll();
+        Map<String, InstanceInfoRecord> all = loadAll();
         if (all.remove(instanceName) != null) save(all);
     }
 
-    private static void save(Map<String, InstanceInfo> all) throws IOException {
+    private static void save(Map<String, InstanceInfoRecord> all) throws IOException {
         Path f = KMCLPath.getKmclPath().resolve("instances.json");
         Files.createDirectories(f.getParent());
         Path temp = Files.createTempFile(f.getParent(), ".tmp-", ".json");

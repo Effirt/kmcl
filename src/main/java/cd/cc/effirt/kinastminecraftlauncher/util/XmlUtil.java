@@ -1,13 +1,15 @@
 package cd.cc.effirt.kinastminecraftlauncher.util;
 
-import module java.base;
-import module java.xml;
-
 import cd.cc.effirt.util.Log;
+
+import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 public class XmlUtil {
 
-    /** 读取 maven-metadata.xml 里的全部 <version> 文本，解析失败返回空 List。 */
     public static List<String> readVersionTags(String xml) {
         List<String> out = new ArrayList<>();
         try {

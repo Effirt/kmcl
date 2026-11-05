@@ -5,7 +5,7 @@ import module java.base;
 import cd.cc.effirt.kinastminecraftlauncher.KMCLPath;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionInstaller;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionJSONParser;
-import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceInfo;
+import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceInfoRecord;
 import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceRegistry;
 import cd.cc.effirt.kinastminecraftlauncher.util.*;
 import cd.cc.effirt.util.Log;
@@ -261,7 +261,7 @@ public class NeoForgeInstaller {
         Path targetJson = targetDir.resolve(mcVersion + ".json");
         Files.writeString(targetJson, merged.toString(), StandardCharsets.UTF_8);
 
-        InstanceRegistry.put(instanceName, new InstanceInfo(mcVersion, "neoforge", loaderVersion));
+        InstanceRegistry.put(instanceName, new InstanceInfoRecord(mcVersion, "neoforge", loaderVersion));
         return targetJson;
     }
 

@@ -2,7 +2,7 @@ package cd.cc.effirt.kinastminecraftlauncher.download.fabric;
 
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionDownloader;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionInstaller;
-import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceInfo;
+import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceInfoRecord;
 import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceRegistry;
 import cd.cc.effirt.util.Log;
 import cd.cc.effirt.kinastminecraftlauncher.util.Http;
@@ -33,7 +33,7 @@ public class FabricInstaller {
         Files.createDirectories(target.getParent());
         Files.writeString(target, merged.toString(), StandardCharsets.UTF_8);
 
-        InstanceRegistry.put(instanceName, new InstanceInfo(mcVersion, "fabric", loader));
+        InstanceRegistry.put(instanceName, new InstanceInfoRecord(mcVersion, "fabric", loader));
         return target;
     }
 

@@ -58,7 +58,7 @@ public class VersionInstaller {
         try (var pb = new ProgressBar()) {
             pb.setCustomText(mcVersion + ".jar");
             pb.start();
-            if (Files.isRegularFile(dest) && (art.size() <= 0 || Files.size(dest) == art.size())) {
+            if (Files.exists(dest) && Files.size(dest) == art.size()) {
                 pb.finish();
                 return;
             }

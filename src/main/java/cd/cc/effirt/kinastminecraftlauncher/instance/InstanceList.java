@@ -8,7 +8,7 @@ import java.util.Map;
 
 public class InstanceList {
     public static void list() {
-        Map<String, InstanceInfo> all;
+        Map<String, InstanceInfoRecord> all;
         try {
             all = InstanceRegistry.loadAll();
         } catch (IOException e) {
@@ -32,7 +32,7 @@ public class InstanceList {
         IO.println(table.render());
     }
 
-    private static String formatLoader(InstanceInfo info) {
+    private static String formatLoader(InstanceInfoRecord info) {
         String loader = info.loader();
         if (loader == null || loader.equals("vanilla")) return "Vanilla";
         String v = info.loaderVersion();

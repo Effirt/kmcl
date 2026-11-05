@@ -25,7 +25,6 @@ public class ProgressBar implements AutoCloseable {
 
         Thread t = new Thread(() -> {
             long seenVersion = -1L;
-
             try {
                 while (!finished) {
                     long d = done;
