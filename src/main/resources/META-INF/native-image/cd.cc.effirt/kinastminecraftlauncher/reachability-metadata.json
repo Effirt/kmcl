@@ -276,7 +276,7 @@
       ]
     },
     {
-      "type": "cd.cc.effirt.kinastminecraftlauncher.instance.InstanceInfo",
+      "type": "cd.cc.effirt.kinastminecraftlauncher.instance.InstanceInfoRecord",
       "methods": [
         {
           "name": "<init>",
