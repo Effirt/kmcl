@@ -276,30 +276,16 @@
       ]
     },
     {
-      "type": "cd.cc.effirt.kinastminecraftlauncher.instance.InstanceInfoRecord",
-      "methods": [
-        {
-          "name": "<init>",
-          "parameterTypes": [
-            "java.lang.String",
-            "java.lang.String",
-            "java.lang.String"
-          ]
-        },
-        {
-          "name": "loader",
-          "parameterTypes": []
-        },
-        {
-          "name": "loaderVersion",
-          "parameterTypes": []
-        },
-        {
-          "name": "minecraftVersion",
-          "parameterTypes": []
-        }
-      ]
-    },
+  "type": "cd.cc.effirt.kinastminecraftlauncher.instance.InstanceInfoRecord",
+  "allDeclaredConstructors": true,
+  "allPublicConstructors": true,
+  "allDeclaredMethods": true,
+  "allPublicMethods": true,
+  "queryAllDeclaredMethods": true,
+  "queryAllPublicMethods": true,
+  "allDeclaredFields": true,
+  "unsafeAllocated": true
+},
     {
       "type": "com.google.gson.internal.bind.JavaTimeTypeAdapters",
       "methods": [
