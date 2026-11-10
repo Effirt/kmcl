@@ -27,8 +27,10 @@ public final class VersionJSONParser {
         try (var r = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
             return parse(JsonParser.parseReader(r).getAsJsonObject(), mcVersion);
         } catch (JsonParseException e) {
+            // JsonSyntaxException 继承自 JsonParseException：一并转成 IOException，
+            // 否则 picocli 不会捕获，启动/安装会直接打出堆栈
             Log.error("Malformed version JSON: {}", file, e);
-            throw e;
+            throw new IOException("Malformed version JSON: " + file, e);
         }
     }
 
@@ -36,7 +38,8 @@ public final class VersionJSONParser {
         var loggingRoot = root.getAsJsonObject("logging");
         var loggingClient = loggingRoot == null ? null
                 : Logging.of(loggingRoot.getAsJsonObject("client"));
-        return new VersionInfo(
+        boolean inherited = hasInheritsFrom(root);
+        VersionInfo own = new VersionInfo(
                 str(root, "id"),
                 str(root, "type"),
                 str(root, "mainClass"),
@@ -50,6 +53,18 @@ public final class VersionJSONParser {
                 Arguments.of(root.getAsJsonObject("arguments")),
                 loggingClient
         );
+        String childJar = str(root, "jar");
+        return new VersionInfo(own.id(), own.type(), own.mainClass(), own.assets(),
+                own.minecraftArguments(), own.mcVersion(), own.assetIndex(), own.downloads(),
+                own.javaVersion(), own.libraries(), own.arguments(), own.loggingClient(),
+                str(root, "inheritsFrom"),
+                childJar == null || childJar.isBlank() ? null : childJar,
+                inherited);
+    }
+
+    private static boolean hasInheritsFrom(JsonObject root) {
+        var inherits = root.get("inheritsFrom");
+        return inherits != null && !inherits.isJsonNull() && !inherits.getAsString().isBlank();
     }
 
     private static String resolveMcVersion(JsonObject root) {
@@ -84,12 +99,23 @@ public final class VersionJSONParser {
             JavaVersion javaVersion,
             List<Library> libraries,
             Arguments arguments,          // 新版；null 表示旧版
-            Logging loggingClient
+            Logging loggingClient,
+            String inheritsFrom,          // Forge/NeoForge 1.13+ 的父版本 id；无则 null
+            String jar,                   // 可选：客户端 jar 覆盖（Forge 用 net.minecraft:client:...）
+            boolean inherited             // true 表示该 json 依赖目标版本（未合并）
     ) {
         public VersionInfo {
             libraries = libraries == null ? List.of() : List.copyOf(libraries);
         }
 
+        /** 兼容旧签名的构造：不含继承信息。 */
+        public VersionInfo(String id, String type, String mainClass, String assets,
+                           String minecraftArguments, String mcVersion, AssetIndex assetIndex,
+                           Downloads downloads, JavaVersion javaVersion, List<Library> libraries,
+                           Arguments arguments, Logging loggingClient) {
+            this(id, type, mainClass, assets, minecraftArguments, mcVersion, assetIndex, downloads,
+                    javaVersion, libraries, arguments, loggingClient, null, null, false);
+        }
     }
 
     public record AssetIndex(String id, String url, String sha1, long size, long totalSize) {
@@ -298,7 +324,7 @@ public final class VersionJSONParser {
             String sysVer = System.getProperty("os.version", "");
             if (osName != null && !osName.equals(currentOs())) return false;
             if (osArch != null && !osArch.equals(System.getProperty("os.arch"))) return false;
-            if (osVersion != null && !System.getProperty("os.version").startsWith(osVersion)) return false;
+            if (osVersion != null && !sysVer.startsWith(osVersion)) return false;
             if (osVersionMin != null && compareVersion(sysVer, osVersionMin) < 0) return false;
             if (osVersionMax != null && compareVersion(sysVer, osVersionMax) > 0) return false;
 
@@ -373,10 +399,15 @@ public final class VersionJSONParser {
         }
 
         static Arguments of(JsonObject o) {
-            return o == null ? null
-                    : new Arguments(readList(o.getAsJsonArray("game")),
-                    readList(o.getAsJsonArray("jvm")),
-                    readList(o.getAsJsonArray("default-user-jvm")));
+            if (o == null) return null;
+            // 不用 o.getAsJsonArray(...)：gson 会在嵌套对象上抛 ClassCastException
+            return new Arguments(readList(arrayOf(o, "game")),
+                    readList(arrayOf(o, "jvm")),
+                    readList(arrayOf(o, "default-user-jvm")));
+        }
+
+        private static JsonArray arrayOf(JsonObject o, String key) {
+            return o.get(key) instanceof JsonArray arr ? arr : null;
         }
 
         private static List<Argument> readList(JsonArray arr) {
@@ -433,55 +464,182 @@ public final class VersionJSONParser {
         }
     }
 
-    public static JsonObject mergeLoaderWithVanilla(
-            JsonObject loader, JsonObject vanilla, String instanceId) {
-        JsonObject merged = new JsonObject();
+    // =================== 继承链合并 ===================
 
-        copyIfPresent(vanilla, merged, "assetIndex");
-        copyIfPresent(vanilla, merged, "assets");
-        copyIfPresent(vanilla, merged, "downloads");
-        copyIfPresent(vanilla, merged, "type");
-        copyIfPresent(vanilla, merged, "logging");
-        copyIfPresent(vanilla, merged, "javaVersion");
+    /**
+     * 解析 {@code inheritsFrom} 链（例如 实例 → Forge → 原版）。
+     *
+     * <p>每一环都按 {@link #genericMerge} 折叠：子版本覆盖所有单值字段，
+     * {@code libraries} 按 Maven 坐标覆盖、{@code arguments} 追加，
+     * 原版的 {@code downloads} 等只由父版本提供。子版本允许使用简化写法
+     * {@code "librariesFrom": { "parent": [ ... ] }} 追加一组库，不需要父版本的 id
+     * 就能追踪继承关系。</p>
+     *
+     * <p>合并结果里 {@code inheritsFrom} 会被移除，因此可以直接由
+     * {@link VersionJSONParser#parse(JsonObject, String)} 解析成扁平信息。</p>
+     */
+    public static JsonObject resolve(JsonObject version, VersionProvider provider) throws IOException {
+        Objects.requireNonNull(version, "version");
+        Objects.requireNonNull(provider, "provider");
+        Deque<JsonObject> chain = new ArrayDeque<>();
+        Set<String> visited = new HashSet<>();
+        JsonObject current = version;
+        while (current != null) {
+            String id = str(current, "id");
+            String parentId = str(current, "inheritsFrom");
+            chain.addLast(current);
+            if (parentId == null || parentId.isBlank()) break;
+            if (id == null) {
+                id = parentId;          // 无 id 的子版本用父版本 id 作为链标识
+            }
+            if (!visited.add(id)) {
+                throw new IOException("Circular inheritsFrom chain at '" + id + "'");
+            }
+            current = provider.load(parentId);
+        }
 
-        merged.addProperty("id", instanceId);
-        if (loader.has("mainClass")) merged.add("mainClass", loader.get("mainClass"));
-        if (loader.has("javaVersion")) merged.add("javaVersion", loader.get("javaVersion"));
-
-        JsonArray libs = new JsonArray();
-        if (vanilla.get("libraries") instanceof JsonArray vl) libs.addAll(vl);
-        if (loader.get("libraries") instanceof JsonArray ll) libs.addAll(ll);
-        merged.add("libraries", libs);
-
-        JsonObject args = new JsonObject();
-        args.add("game", mergeArgs(vanilla, loader, "game"));
-        args.add("jvm", mergeArgs(vanilla, loader, "jvm"));
-        merged.add("arguments", args);
-
-        if (vanilla.has("minecraftArguments")) {
-            merged.add("minecraftArguments", vanilla.get("minecraftArguments"));
+        JsonObject merged = chain.removeLast();
+        while (!chain.isEmpty()) {
+            merged = genericMerge(chain.removeLast(), merged);
         }
         return merged;
     }
 
-    private static JsonArray mergeArgs(JsonObject a, JsonObject b, String key) {
-        JsonArray out = new JsonArray();
-        addArgs(out, a, key);
-        addArgs(out, b, key);
+    /** {@code inheritsFrom} 目标版本的获取口（通常是 Mojang 的 version_manifest）。 */
+    @FunctionalInterface
+    public interface VersionProvider {
+        /** @return 该版本 id 的<b>原始</b> json（可以仍带 inheritsFrom） */
+        JsonObject load(String versionId) throws IOException;
+    }
+
+    /**
+     * 把 {@code child} 叠加到 {@code parent} 上（Minecraft 继承语义）。
+     *
+     * <ul>
+     *   <li>{@code downloads / assetIndex / assets / mainClass / type / logging / javaVersion /
+     *       complianceLevel / id ...} 等标量字段由子版本覆盖父版本；</li>
+     *   <li>{@code libraries} 先子后父，按 Maven 坐标去重（子版本优先）；</li>
+     *   <li>{@code arguments.game / jvm / default-user-jvm} 先子后父追加；</li>
+     *   <li>{@code minecraftArguments} 与 {@code arguments} 同时存在时只保留 {@code arguments}；</li>
+     *   <li>{@code inheritsFrom} 与简化写法 {@code librariesFrom} 不会进入结果。</li>
+     * </ul>
+     *
+     * <p>刻意不使用 {@code JsonElement#deepCopy()}：它会把内部容器标记为 deepCopy，
+     * 之后再调用 {@code getAsJsonArray(...)} 会抛 ClassCastException，并污染父对象。</p>
+     */
+    public static JsonObject genericMerge(JsonObject child, JsonObject parent) {
+        Objects.requireNonNull(child, "child");
+        JsonObject out = new JsonObject();
+        for (String k : child.keySet()) {
+            if (isDynamicKey(k)) continue;
+            out.add(k, child.get(k));
+        }
+        if (parent != null) {
+            for (String k : parent.keySet()) {
+                if (isDynamicKey(k) || out.has(k)) continue;
+                out.add(k, parent.get(k));
+            }
+        }
+        out.remove("inheritsFrom");
+        out.remove("librariesFrom");
+        // 子版本优先：只有子版本没有的字段才由父版本补齐
+        for (String key : new String[]{"arguments", "libraries"}) {
+            JsonElement childEl = child.get(key);
+            JsonElement parentEl = parent == null ? null : parent.get(key);
+            JsonElement merged = mergeField(key, childEl, parentEl);
+            if (merged != null) out.add(key, merged);
+        }
+        if (out.has("arguments")) out.remove("minecraftArguments");
         return out;
     }
 
-    private static void addArgs(JsonArray out, JsonObject src, String key) {
-        if (src.get("arguments") instanceof JsonObject args
-                && args.get(key) instanceof JsonArray arr) {
-            out.addAll(arr);
+    /**
+     * 合并 {@code arguments} / {@code libraries}：子版本条目在前（同名条目优先取子版本），
+     * 父版本中未被子版本覆盖的条目按原顺序追加在后。
+     *
+     * @return 合并结果；无内容返回 {@code null}
+     */
+    private static JsonElement mergeField(String key, JsonElement childEl, JsonElement parentEl) {
+        JsonArray childArr = childEl instanceof JsonArray ca ? ca : null;
+        JsonArray parentArr = parentEl instanceof JsonArray pa ? pa : null;
+        boolean arguments = key.equals("arguments");
+
+        JsonObject mergedArgs = arguments ? new JsonObject() : null;
+        JsonArray mergedLibs = arguments ? null : appendChildFirst(childArr, parentArr);
+
+        if (arguments) {
+            for (String g : new String[]{"game", "jvm", "default-user-jvm"}) {
+                // 分组经 asMap() 安全取值：gson 的 getAsJsonArray 在嵌套场景会误抛 ClassCastException
+                JsonArray childGroup = groupArray(childEl, g);
+                JsonArray parentGroup = groupArray(parentEl, g);
+                JsonArray m = appendChildFirst(childGroup, parentGroup);
+                if (!m.isEmpty()) {
+                    mergedArgs.add(g, m);
+                } else {
+                    // 子版本干脆没写 arguments 时，原样沿用父版本的那一组
+                    copyGroupIfPresent(mergedArgs, parentEl, g);
+                }
+            }
         }
+        return finishMerge(mergedArgs, mergedLibs);
     }
 
-    private static void copyIfPresent(JsonObject src, JsonObject dst, String key) {
-        if (src.has(key) && !src.get(key).isJsonNull()) {
-            dst.add(key, src.get(key));
+    /** 合并结果为空时返回 null。 */
+    private static JsonElement finishMerge(JsonObject args, JsonArray libs) {
+        if (args != null && !args.isEmpty()) return args;
+        if (libs != null && !libs.isEmpty()) return libs;
+        return null;
+    }
+
+    /** 父版本的某组参数原样搬过来（只在子版本完全没写 arguments 时使用）。 */
+    private static void copyGroupIfPresent(JsonObject dst, JsonElement src, String g) {
+        if (src == null || !src.isJsonObject()) return;
+        JsonElement inner = src.getAsJsonObject().get(g);
+        if (inner instanceof JsonArray arr && !arr.isEmpty()) dst.add(g, arr);
+    }
+
+    private static JsonArray groupArray(JsonElement el, String g) {
+        if (el == null || el.isJsonNull() || !el.isJsonObject()) return null;
+        java.util.Map<String, com.google.gson.JsonElement> map =
+                new java.util.HashMap<>(el.getAsJsonObject().asMap());
+        JsonElement inner = map.get(g);
+        return inner != null && inner.isJsonArray() ? inner.getAsJsonArray() : null;
+    }
+
+    /** 子版本条目在前；父版本里与子版本同名的条目被跳过。 */
+    private static JsonArray appendChildFirst(JsonArray childArr, JsonArray parentArr) {
+        JsonArray out = new JsonArray();
+        Set<String> seen = new HashSet<>();
+        if (childArr != null) {
+            for (JsonElement el : childArr) {
+                if (el == null || el.isJsonNull()) continue;
+                String key = dedupeKey(el);
+                if (key != null) {
+                    seen.add(key);
+                }
+                out.add(el);
+            }
         }
+        if (parentArr != null) {
+            for (JsonElement el : parentArr) {
+                if (el == null || el.isJsonNull()) continue;
+                String key = dedupeKey(el);
+                if (key != null && !seen.add(key)) continue;
+                out.add(el);
+            }
+        }
+        return out;
+    }
+
+    /** libraries 用 Maven 坐标去重；参数条目只对纯字符串去重。 */
+    private static String dedupeKey(JsonElement el) {
+        if (!(el instanceof JsonObject o)) return null;
+        return str(o, "name") == null ? null : str(o, "name");
+    }
+
+    private static boolean isDynamicKey(String k) {
+        return k.equals("libraries") || k.equals("arguments") || k.equals("minecraftArguments")
+                || k.equals("inheritsFrom") || k.equals("librariesFrom");
     }
 
 

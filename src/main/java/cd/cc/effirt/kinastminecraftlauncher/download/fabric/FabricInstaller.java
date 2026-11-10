@@ -1,9 +1,9 @@
 package cd.cc.effirt.kinastminecraftlauncher.download.fabric;
 
+import cd.cc.effirt.kinastminecraftlauncher.KMCLPath;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionDownloader;
-import cd.cc.effirt.kinastminecraftlauncher.download.VersionInstaller;
-import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceInfoRecord;
-import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceRegistry;
+import cd.cc.effirt.kinastminecraftlauncher.download.loader.Loaders;
+import cd.cc.effirt.kinastminecraftlauncher.exception.VersionNotFoundException;
 import cd.cc.effirt.util.Log;
 import cd.cc.effirt.kinastminecraftlauncher.util.Http;
 import com.google.gson.*;
@@ -16,12 +16,16 @@ import java.nio.file.Path;
 public class FabricInstaller {
 
     private static final String META = "https://meta.fabricmc.net/v2/versions/loader/";
+    private static final String META_AVAILABLE = "https://meta.fabricmc.net/v2/versions/game";
 
     public static Path install(String mcVersion, String requestedLoader, String instanceName)
             throws IOException {
+        if (!VersionDownloader.exists(mcVersion)) {
+            throw new VersionNotFoundException(mcVersion);
+        }
         String loader = (requestedLoader == null || requestedLoader.isBlank())
                 ? resolveLatestStableLoader(mcVersion)
-                : requestedLoader;
+                : requestedLoader.trim();
 
         Log.info("Fabric Loader version: {}", loader);
 
@@ -29,12 +33,48 @@ public class FabricInstaller {
         JsonObject vanilla = VersionDownloader.fetchVanillaJson(mcVersion);
         JsonObject merged = merge(vanilla, profile, instanceName);
 
-        Path target = VersionInstaller.versionJson(instanceName, mcVersion);
+        Path target = KMCLPath.getKmclPath().resolve("versions").resolve(instanceName)
+                .resolve(mcVersion + ".json");
         Files.createDirectories(target.getParent());
         Files.writeString(target, merged.toString(), StandardCharsets.UTF_8);
 
-        InstanceRegistry.put(instanceName, new InstanceInfoRecord(mcVersion, "fabric", loader));
+        Loaders.register(instanceName, mcVersion, "fabric", loader);
         return target;
+    }
+
+    /** Fabric Loader 是否支持该 Minecraft 版本。 */
+    public static boolean exists(String mcVersion) {
+        try {
+            JsonArray games = parseArray(Http.get(META_AVAILABLE), "fabric game versions");
+            for (JsonElement el : games) {
+                if (el instanceof JsonObject o && o.has("version")
+                        && o.get("version").getAsString().equals(mcVersion)) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (IOException _) {
+            return true;   // 网络问题时不要直接否决
+        }
+    }
+
+    /** 列出某 MC 版本可用的 Fabric Loader 版本（由新到旧）。 */
+    public static java.util.List<String> listLoaders(String mcVersion) {
+        try {
+            JsonArray loaders = parseArray(Http.get(META + mcVersion), "fabric loader list " + mcVersion);
+            java.util.List<String> out = new java.util.ArrayList<>();
+            for (JsonElement el : loaders) {
+                if (el instanceof JsonObject entry
+                        && entry.get("loader") instanceof JsonObject loader
+                        && loader.get("version") instanceof JsonPrimitive v) {
+                    out.add(v.getAsString());
+                }
+            }
+            return out;
+        } catch (IOException e) {
+            Log.warn("Failed to list Fabric loaders for {}: {}", mcVersion, e.getMessage());
+            return java.util.List.of();
+        }
     }
 
     // ---------- Loader 解析 ----------

@@ -1,5 +1,6 @@
 package cd.cc.effirt.kinastminecraftlauncher.download;
 
+import cd.cc.effirt.kinastminecraftlauncher.KMCLPath;
 import cd.cc.effirt.util.Log;
 import cd.cc.effirt.kinastminecraftlauncher.exception.VersionNotFoundException;
 import cd.cc.effirt.kinastminecraftlauncher.util.Http;
@@ -20,7 +21,7 @@ public class VersionDownloader {
         String url = resolveUrl(mcVersion);
         if (url == null) throw new VersionNotFoundException(mcVersion);
 
-        Path target = VersionInstaller.versionJson(instanceName, mcVersion);
+        Path target = KMCLPath.getKmclPath().resolve("versions").resolve(instanceName).resolve(mcVersion + ".json");
         Files.createDirectories(target.getParent());
 
         Log.info("Downloading {} version JSON...", mcVersion);
@@ -49,6 +50,11 @@ public class VersionDownloader {
         } catch (JsonParseException e) {
             throw new IOException("Malformed version JSON for " + mcVersion, e);
         }
+    }
+
+    /** 原版版本是否存在（在 manifest 里）。 */
+    public static boolean exists(String mcVersion) throws IOException {
+        return resolveUrl(mcVersion) != null;
     }
 
     private static String resolveUrl(String mcVersion) throws IOException {

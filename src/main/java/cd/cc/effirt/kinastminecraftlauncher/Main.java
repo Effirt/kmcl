@@ -49,7 +49,7 @@ public class Main implements Callable<Integer> {
         }
         try {
             Account acc = AccountStorage.getAccount();
-            Log.info("Use account: {}", acc);
+            Log.info("Using account: {}", acc);
             int code = LaunchInstance.launch(instanceName, acc);
             Log.info("Minecraft exit code: {}", code);
             return code == 0 ? SUCCESSFUL : FAILED;

@@ -1,13 +1,10 @@
 package cd.cc.effirt.kinastminecraftlauncher.command;
 
 import cd.cc.effirt.kinastminecraftlauncher.MinecraftLoaderEnum;
-import cd.cc.effirt.kinastminecraftlauncher.download.VersionDownloader;
+import cd.cc.effirt.kinastminecraftlauncher.download.LoaderInstaller;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionInstaller;
-import cd.cc.effirt.kinastminecraftlauncher.download.fabric.FabricInstaller;
-import cd.cc.effirt.kinastminecraftlauncher.download.neoforge.NeoForgeInstaller;
 import cd.cc.effirt.kinastminecraftlauncher.exception.UnsupportedLoaderException;
 import cd.cc.effirt.kinastminecraftlauncher.exception.VersionNotFoundException;
-import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceInfoRecord;
 import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceList;
 import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceManager;
 import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceRegistry;
@@ -27,9 +24,9 @@ import static cd.cc.effirt.kinastminecraftlauncher.ExitCode.*;
 @Command(name = "instance", aliases = {"inst"}, description = "Minecraft instance management",
         subcommands = {
                 InstanceCommand.List.class,
-                InstanceCommand.Create.class,
+                InstanceCommand.Add.class,
                 InstanceCommand.Rename.class,
-                InstanceCommand.Delete.class
+                InstanceCommand.Del.class
         }
 )
 public class InstanceCommand implements Callable<Integer> {
@@ -56,7 +53,7 @@ public class InstanceCommand implements Callable<Integer> {
     // ==================== create ====================
 
     @Command(name = "add", description = "Add a new instance")
-    static class Create implements Callable<Integer> {
+    static class Add implements Callable<Integer> {
         @Parameters(index = "0", paramLabel = "<instanceName>", description = "Instance name")
         String name;
 
@@ -64,12 +61,12 @@ public class InstanceCommand implements Callable<Integer> {
                 description = "Minecraft version")
         String mcVersion;
 
-        @Option(names = {"-l", "--loader"}, defaultValue = "vanilla",
-                description = "Loader (vanilla/fabric/neoforge)")
-        MinecraftLoaderEnum loader;
+        @Option(names = {"-l", "--loader"}, defaultValue = "vanilla", paramLabel = "<loader>",
+                description = "Loader: vanilla / forge / fabric / neoforge")
+        String loaderToken;
 
-        @Option(names = {"-lv", "--loader-version"},
-                description = "Loader version (defaults to latest stable)")
+        @Option(names = {"-lv", "--loader-version"}, paramLabel = "<loaderVersion>",
+                description = "Loader version (defaults to recommended/latest)")
         String loaderVersion;
 
         @Option(names = {"--retry"}, defaultValue = "5",
@@ -78,39 +75,37 @@ public class InstanceCommand implements Callable<Integer> {
 
         @Override
         public Integer call() {
+            MinecraftLoaderEnum loader;
+            try {
+                loader = MinecraftLoaderEnum.fromToken(loaderToken);
+            } catch (IllegalArgumentException e) {
+                Log.error(e.getMessage());
+                return USAGE;
+            }
             try {
                 if (InstanceRegistry.get(name) != null) {
                     Log.error("Instance already exists: {}", name);
                     return FAILED;
                 }
 
-                Log.info("Creating instance '{}' (Minecraft {}, {})...",
-                        name, mcVersion, loader);
+                Log.info("Adding instance '{}' (Minecraft {}, {})...",
+                        name, mcVersion, loader.displayName());
 
-                Path jsonFile = switch (loader) {
-                    case vanilla -> {
-                        Path p = VersionDownloader.downloadVanillaJson(mcVersion, name);
-                        InstanceRegistry.put(name, new InstanceInfoRecord(mcVersion, "vanilla", null));
-                        yield p;
-                    }
-                    case fabric -> FabricInstaller.install(mcVersion, loaderVersion, name);
-                    case neoforge -> NeoForgeInstaller.install(mcVersion, loaderVersion, name);
-                    default -> throw new UnsupportedLoaderException(loader);
-                };
+                Path jsonFile = LoaderInstaller.install(loader, mcVersion, loaderVersion, name);
 
-                if (loader != MinecraftLoaderEnum.neoforge) {
+                if (LoaderInstaller.installsClientJar(loader)) {
                     VersionInstaller.installClient(name, jsonFile, retry);
                 }
                 VersionInstaller.installLibraries(name, jsonFile, retry);
                 VersionInstaller.installAssets(jsonFile, retry);
 
-                Log.info("Successfully created instance '{}' (Minecraft {})", name, mcVersion);
+                Log.info("Successfully added instance '{}' (Minecraft {})", name, mcVersion);
                 return SUCCESSFUL;
             } catch (VersionNotFoundException | UnsupportedLoaderException e) {
                 Log.error(e.getMessage());
                 return USAGE;
             } catch (IOException e) {
-                Log.error("Failed to create '{}'", name, e);
+                Log.error("Failed to add '{}'", name, e);
                 return FAILED;
             }
         }
@@ -140,22 +135,22 @@ public class InstanceCommand implements Callable<Integer> {
 
     // ==================== delete ====================
 
-    @Command(name = "delete", description = "Delete an instance")
-    static class Delete implements Callable<Integer> {
+    @Command(name = "del", description = "Delete an instance")
+    static class Del implements Callable<Integer> {
         @Parameters(index = "0", paramLabel = "<instanceName>", description = "Instance name")
         String name;
 
-        @Option(names = {"--keep-data"},
-                description = "Keep instances data")
-        boolean keepData;
+        @Option(names = {"--data", "-d"},
+                description = "Delete instances data")
+        boolean data;
 
         @Override
         public Integer call() {
             try {
-                InstanceManager.delete(name, keepData);
+                InstanceManager.delete(name, data);
                 return SUCCESSFUL;
             } catch (IOException e) {
-                Log.error("Failed to delete: {}", e.getMessage());
+                Log.error("Failed to delete: {}", e.getMessage(), e);
                 return FAILED;
             }
         }

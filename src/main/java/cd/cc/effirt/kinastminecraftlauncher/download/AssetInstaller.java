@@ -1,5 +1,6 @@
 package cd.cc.effirt.kinastminecraftlauncher.download;
 
+import cd.cc.effirt.kinastminecraftlauncher.KMCLPath;
 import cd.cc.effirt.kinastminecraftlauncher.util.DownloadBatch;
 import cd.cc.effirt.util.Log;
 import cd.cc.effirt.kinastminecraftlauncher.util.Http;
@@ -13,11 +14,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 
-public final class AssetInstaller {
+public class AssetInstaller {
 
     private static final String OBJECT_URL = "https://resources.download.minecraft.net/";
-
-    private AssetInstaller() {}
 
     public static void install(VersionJSONParser.VersionInfo info, int maxAttempts)
             throws IOException {
@@ -34,7 +33,7 @@ public final class AssetInstaller {
             return;   // 旧版本可能没有 logging
         }
         var file = logging.file();
-        var dest = VersionInstaller.assetsDir().resolve("log_configs").resolve(file.id());
+        var dest = KMCLPath.getKmclPath().resolve("assets").resolve("log_configs").resolve(file.id());
         Files.createDirectories(dest.getParent());
 
         if (Files.exists(dest) && (file.size() <= 0 || Files.size(dest) == file.size())) {
@@ -76,11 +75,11 @@ public final class AssetInstaller {
             return;
         }
 
-        var indexFile = VersionInstaller.assetsDir().resolve("indexes").resolve(ai.id() + ".json");
+        var indexFile = KMCLPath.getKmclPath().resolve("assets").resolve("indexes").resolve(ai.id() + ".json");
         Files.createDirectories(indexFile.getParent());
         ensureIndex(ai, indexFile, maxAttempts);
 
-        var objectsDir = VersionInstaller.assetsDir().resolve("objects");
+        var objectsDir = KMCLPath.getKmclPath().resolve("assets").resolve("objects");
         Files.createDirectories(objectsDir);
 
         var tasks = new LinkedHashMap<String, DownloadBatch.Task>();

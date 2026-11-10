@@ -10,27 +10,22 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.regex.Pattern;
 
 public class VersionInstaller {
 
-    public static Path versionDir(String instanceName) {
-        return KMCLPath.getKmclPath().resolve("versions").resolve(instanceName);
-    }
+    /**
+     * Maven 坐标：{@code group:artifact:version[:classifier][@ext]}。
+     * Forge 1.17+ 的 version json 用这种写法引用本来就随安装器下载好的 loader 库，
+     * 这些库<b>不</b>带 {@code downloads}，也不应再按名字去网上找。
+     */
+    private static final Pattern MAVEN_COORDINATE =
+            Pattern.compile("[\\w.\\-]+:[\\w.\\-]+:[\\w.\\-]+(:[\\w.\\-]+)?(@\\w+)?");
 
-    public static Path versionJson(String instanceName, String mcVersion) {
-        return versionDir(instanceName).resolve(mcVersion + ".json");
-    }
-
-    public static Path clientJar(String instanceName, String mcVersion) {
-        return versionDir(instanceName).resolve(mcVersion + ".jar");
-    }
-
-    public static Path nativesDir(String instanceName) {
-        return versionDir(instanceName).resolve("natives");
-    }
-
-    public static Path assetsDir() {
-        return KMCLPath.getKmclPath().resolve("assets");
+    private static boolean hasMavenCoordinateOnly(VersionJSONParser.Library lib) {
+        if (lib.downloads() != null) return false;
+        String name = lib.name();
+        return name != null && MAVEN_COORDINATE.matcher(name).matches();
     }
 
     // ============ client.jar ============
@@ -42,6 +37,18 @@ public class VersionInstaller {
 
     public static void installClient(String instanceName, VersionJSONParser.VersionInfo info,
                                      int maxAttempts) throws IOException {
+        String mcVersion = info.mcVersion();
+        installClient(instanceName, info, maxAttempts,
+                (mcVersion == null || mcVersion.isBlank()) ? instanceName + ".jar" : mcVersion + ".jar");
+    }
+
+    /**
+     * 下载 {@code downloads.client}。
+     *
+     * @param jarName 实例目录下的目标文件名，默认 {@code <mcVersion>.jar}
+     */
+    public static void installClient(String instanceName, VersionJSONParser.VersionInfo info,
+                                     int maxAttempts, String jarName) throws IOException {
         var dl = info.downloads();
         if (dl == null || dl.client() == null || dl.client().url() == null)
             throw new IOException("version JSON has no downloads.client for id=" + info.id());
@@ -51,17 +58,16 @@ public class VersionInstaller {
             throw new IOException("version JSON has no mcVersion, cannot resolve jar path");
 
         var art = dl.client();
-        var dest = clientJar(instanceName, mcVersion);
+        var dest = KMCLPath.getKmclPath().resolve("versions").resolve(instanceName).resolve(jarName);
         Files.createDirectories(dest.getParent());
+        if (Files.exists(dest) && art.size() > 0 && Files.size(dest) == art.size()) {
+            return;
+        }
 
         Log.info("Downloading {}.jar...", mcVersion);
         try (var pb = new ProgressBar()) {
             pb.setCustomText(mcVersion + ".jar");
             pb.start();
-            if (Files.exists(dest) && Files.size(dest) == art.size()) {
-                pb.finish();
-                return;
-            }
             DownloadBatch.one(new DownloadBatch.Task(dl.client().url(), dl.client().size(), dest),
                     maxAttempts, pb);
         }
@@ -77,7 +83,7 @@ public class VersionInstaller {
     public static void installLibraries(String instanceName, VersionJSONParser.VersionInfo info,
                                         int maxAttempts) throws IOException {
         var libsDir = KMCLPath.getKmclPath().resolve("libraries");
-        var nativesDir = nativesDir(instanceName);
+        var nativesDir = KMCLPath.getKmclPath().resolve("versions").resolve(instanceName).resolve("natives");
         Files.createDirectories(libsDir);
 
         if (Files.exists(nativesDir)) {
@@ -87,8 +93,7 @@ public class VersionInstaller {
                         .forEach(p -> {
                             try {
                                 Files.deleteIfExists(p);
-                            } catch (IOException _) {
-                            }
+                            } catch (IOException _) {}
                         });
             }
         }
@@ -133,15 +138,23 @@ public class VersionInstaller {
                 String base = lib.url().endsWith("/") ? lib.url() : lib.url() + "/";
                 path = lib.mavenPath();
                 url = base + path;
+            } else if (hasMavenCoordinateOnly(lib)) {
+                // 已由安装器（Forge/NeoForge processors）放进 libraries/
+                path = lib.mavenPath();
+                url = null;
             } else {
                 Log.warn("Skip library without resolvable URL: {}", lib.name());
                 skipped++;
                 continue;
             }
 
-            Path dest = null;
-            if (path != null) {
-                dest = libsDir.resolve(path);
+            Path dest = path == null ? null : libsDir.resolve(path);
+            if (url == null) {
+                if (dest == null || !Files.exists(dest)) {
+                    Log.warn("Library not installed by loader: {}", lib.name());
+                    skipped++;
+                }
+                continue;
             }
             tasks.add(new DownloadBatch.Task(url, size, dest));
             if (isNativeLib) natives.add(new NativeEntryRecord(dest, lib.extract()));

@@ -6,7 +6,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.zip.ZipFile;
 
-public final class NativeExtractor {
+public class NativeExtractor {
 
     public static void extract(Path jar, Path dest, VersionJSONParser.Extract extract)
             throws IOException {

@@ -1,6 +1,8 @@
 package cd.cc.effirt.kinastminecraftlauncher.util;
 
 
+import cd.cc.effirt.util.Log;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,7 +17,9 @@ public class FilesUtil {
             s.sorted(Comparator.reverseOrder()).forEach(p -> {
                 try {
                     Files.deleteIfExists(p);
-                } catch (IOException _) {}
+                } catch (IOException e) {
+                    Log.error("Failed to delete file", e);
+                }
             });
         }
     }

@@ -6,7 +6,7 @@ import cd.cc.effirt.util.Table;
 
 import java.util.Set;
 
-public final class MinecraftVersionList {
+public class MinecraftVersionList {
 
     public static void print(String[][] rows) {
         if (rows == null) {

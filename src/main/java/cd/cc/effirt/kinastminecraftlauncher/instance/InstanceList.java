@@ -34,13 +34,14 @@ public class InstanceList {
 
     private static String formatLoader(InstanceInfoRecord info) {
         String loader = info.loader();
-        if (loader == null || loader.equals("vanilla")) return "Vanilla";
+        if (loader == null || loader.isBlank() || loader.equals("vanilla")) return "Vanilla";
         String v = info.loaderVersion();
-        return switch (loader) {
-            case "fabric" -> v != null ? "Fabric " + v : "Fabric";
-            case "neoforge" -> v != null ? "NeoForge " + v : "NeoForge";
-            case "forge" -> v != null ? "Forge " + v : "Forge";
+        String name = switch (loader) {
+            case "fabric" -> "Fabric";
+            case "neoforge" -> "NeoForge";
+            case "forge" -> "Forge";
             default -> loader;
         };
+        return v != null && !v.isBlank() ? name + " " + v : name;
     }
 }

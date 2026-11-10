@@ -20,7 +20,7 @@ import static cd.cc.effirt.kinastminecraftlauncher.ExitCode.*;
 @Command(name = "auth", description = "Auth management",
         subcommands = {
                 AuthCommand.Add.class,
-                AuthCommand.Delete.class,
+                AuthCommand.Del.class,
                 AuthCommand.List.class,
                 AuthCommand.Use.class
         })
@@ -65,8 +65,8 @@ public class AuthCommand implements Callable<Integer> {
         }
     }
 
-    @Command(name = "delete", description = "Delete an account")
-    static class Delete implements Callable<Integer> {
+    @Command(name = "del", description = "Delete an account")
+    static class Del implements Callable<Integer> {
         @Parameters(index = "0", paramLabel = "<player>", description = "Player name")
         String player;
 

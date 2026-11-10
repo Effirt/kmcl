@@ -15,14 +15,12 @@ import java.nio.file.StandardCopyOption;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public final class InstanceRegistry {
+public class InstanceRegistry {
 
     private static final Gson GSON = new GsonBuilder()
             .setPrettyPrinting()
             .disableHtmlEscaping()
             .create();
-
-    private InstanceRegistry() {}
 
     public static Map<String, InstanceInfoRecord> loadAll() throws IOException {
         Path f = KMCLPath.getKmclPath().resolve("instances.json");

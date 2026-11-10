@@ -1,5 +1,6 @@
 package cd.cc.effirt.kinastminecraftlauncher.instance;
 
+import cd.cc.effirt.kinastminecraftlauncher.KMCLPath;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionInstaller;
 import cd.cc.effirt.kinastminecraftlauncher.util.FilesUtil;
 import cd.cc.effirt.util.Log;
@@ -20,6 +21,10 @@ public class InstanceManager {
             Log.info("Nothing to rename");
             return;
         }
+        if (newName == null || newName.isBlank() || newName.contains("/") || newName.contains("\\")
+                || newName.equals(".") || newName.equals("..")) {
+            throw new IOException("Invalid instance name: " + newName);
+        }
         Map<String, InstanceInfoRecord> all = InstanceRegistry.loadAll();
         InstanceInfoRecord info = all.get(oldName);
         if (info == null) throw new IOException("Instance not found: " + oldName);
@@ -27,8 +32,8 @@ public class InstanceManager {
             throw new IOException("Instance already exists: " + newName);
         }
 
-        Path oldVersionDir = VersionInstaller.versionDir(oldName);
-        Path newVersionDir = VersionInstaller.versionDir(newName);
+        Path oldVersionDir = versionDir(oldName);
+        Path newVersionDir = versionDir(newName);
         Path oldGameDir = VersionInstaller.instanceGameDir(oldName);
         Path newGameDir = VersionInstaller.instanceGameDir(newName);
 
@@ -63,17 +68,21 @@ public class InstanceManager {
         Log.info("Successfully rename '{}' to '{}'...", oldName, newName);
     }
 
-    public static void delete(String name, boolean keepData) throws IOException {
+    private static Path versionDir(String name) {
+        return KMCLPath.getKmclPath().resolve("versions").resolve(name);
+    }
+
+    public static void delete(String name, boolean deleteData) throws IOException {
         Log.info("Deleting '{}'...", name);
         Map<String, InstanceInfoRecord> all = InstanceRegistry.loadAll();
         if (!all.containsKey(name)) throw new IOException("Instance not found: " + name);
 
-        Path versionDir = VersionInstaller.versionDir(name);
+        Path versionDir = versionDir(name);
         if (Files.exists(versionDir)) {
             FilesUtil.deleteRecursively(versionDir);
         }
 
-        if (!keepData) {
+        if (deleteData) {
             Path gameDir = VersionInstaller.instanceGameDir(name);
             if (Files.exists(gameDir)) {
                 FilesUtil.deleteRecursively(gameDir);
@@ -81,6 +90,7 @@ public class InstanceManager {
         }
 
         InstanceRegistry.remove(name);
-        Log.info("Successfully delete instance '{}'{}", name, keepData ? " (data kept)" : "");
+
+        Log.info("Successfully deleted instance '{}'{}", name, deleteData ? " (data removed)" : "");
     }
 }
