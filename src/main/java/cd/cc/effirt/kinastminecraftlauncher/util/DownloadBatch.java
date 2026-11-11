@@ -1,6 +1,6 @@
 package cd.cc.effirt.kinastminecraftlauncher.util;
 
-import cd.cc.effirt.util.Log;
+import cd.cc.effirt.auroralib.Log;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,28 +25,39 @@ public class DownloadBatch {
 
     public static void one(Task t, int maxAttempts, ProgressBar pb) throws IOException {
         Files.createDirectories(t.dest().getParent());
+
+        // 官方优先，失败后按 Mirrors.candidates 的顺序换下一个源（通常是 BMCLAPI 镜像）。
+        // 同一源内仍按 maxAttempts 重试。
+        List<String> candidates = Mirrors.candidates(t.url());
         IOException last = null;
-        long backoffMs = 100;
+        for (int i = 0; i < candidates.size(); i++) {
+            String url = candidates.get(i);
+            long backoffMs = 100;
 
-        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-            try {
-                Http.getDownload(t.url(), t.dest(), pb);
-                if (t.expectSize() > 0 && Files.size(t.dest()) != t.expectSize())
-                    throw new IOException("Size mismatch (want " + t.expectSize() + ", got " + Files.size(t.dest()) + ")");
-                return;
-            } catch (IOException e) {
-                last = e;
-                Files.deleteIfExists(t.dest());
+            for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+                try {
+                    Http.getDownload(url, t.dest(), pb);
+                    if (t.expectSize() > 0 && Files.size(t.dest()) != t.expectSize())
+                        throw new IOException("Size mismatch (want " + t.expectSize()
+                                + ", got " + Files.size(t.dest()) + ")");
+                    return;
+                } catch (IOException e) {
+                    last = e;
+                    Files.deleteIfExists(t.dest());
 
-                if (attempt < maxAttempts) {
-                    try {
-                        Thread.sleep(backoffMs);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        throw new IOException("interrupted", ie);
+                    if (attempt < maxAttempts) {
+                        try {
+                            Thread.sleep(backoffMs);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            throw new IOException("interrupted", ie);
+                        }
+                        backoffMs = Math.min(backoffMs * 2, 2_000);
                     }
-                    backoffMs = Math.min(backoffMs * 2, 2_000);
                 }
+            }
+            if (i + 1 < candidates.size()) {
+                Log.warn("Source failed, trying mirror: {} -> {}", url, candidates.get(i + 1));
             }
         }
         throw last != null ? last : new IOException("Download failed: " + t.url());

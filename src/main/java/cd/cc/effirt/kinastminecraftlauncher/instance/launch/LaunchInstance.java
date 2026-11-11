@@ -14,7 +14,7 @@ import cd.cc.effirt.kinastminecraftlauncher.download.VersionJSONParser.VersionIn
 import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceInfoRecord;
 import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceRegistry;
 import cd.cc.effirt.kinastminecraftlauncher.util.JavaFinder;
-import cd.cc.effirt.util.Log;
+import cd.cc.effirt.auroralib.Log;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.lenni0451.commons.httpclient.HttpClient;
@@ -352,7 +352,7 @@ public class LaunchInstance {
         List<JavaCandidate> found = scanJavaCandidates();
         Path exact = pick(found, required);
         if (exact != null) {
-            Log.info("Use java{} from '{}'", required, exact);
+            Log.info("Using Java {} from '{}'", required, exact);
             return exact;
         }
 

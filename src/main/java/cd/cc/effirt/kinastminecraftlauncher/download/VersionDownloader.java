@@ -1,7 +1,7 @@
 package cd.cc.effirt.kinastminecraftlauncher.download;
 
 import cd.cc.effirt.kinastminecraftlauncher.KMCLPath;
-import cd.cc.effirt.util.Log;
+import cd.cc.effirt.auroralib.Log;
 import cd.cc.effirt.kinastminecraftlauncher.exception.VersionNotFoundException;
 import cd.cc.effirt.kinastminecraftlauncher.util.Http;
 import cd.cc.effirt.kinastminecraftlauncher.util.ProgressBar;

@@ -1,7 +1,8 @@
 package cd.cc.effirt.kinastminecraftlauncher.download;
 
 import cd.cc.effirt.kinastminecraftlauncher.util.DownloadBatch;
-import cd.cc.effirt.util.Log;
+import cd.cc.effirt.kinastminecraftlauncher.util.Mirrors;
+import cd.cc.effirt.auroralib.Log;
 import cd.cc.effirt.kinastminecraftlauncher.KMCLPath;
 import cd.cc.effirt.kinastminecraftlauncher.util.ProgressBar;
 
@@ -160,8 +161,10 @@ public class VersionInstaller {
             if (isNativeLib) natives.add(new NativeEntryRecord(dest, lib.extract()));
         }
 
-        Log.info("Installing {} libraries, {} natives, {} skipped...",
-                tasks.size(), natives.size(), skipped);
+        long mirrorable = tasks.stream()
+                .filter(t -> Mirrors.mirrorable(t.url())).count();
+        Log.info("Installing {} libraries, {} natives, {} skipped, {} mirror-fallback...",
+                tasks.size(), natives.size(), skipped, mirrorable);
         DownloadBatch.run(tasks, maxAttempts, "libraries");
 
         Log.info("Extracting {} native jar...", natives.size());

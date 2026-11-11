@@ -1,7 +1,7 @@
 package cd.cc.effirt.kinastminecraftlauncher.auth;
 
 import cd.cc.effirt.kinastminecraftlauncher.KMCLPath;
-import cd.cc.effirt.util.Log;
+import cd.cc.effirt.auroralib.Log;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;

@@ -1,7 +1,7 @@
 package cd.cc.effirt.kinastminecraftlauncher.auth;
 
 import cd.cc.effirt.kinastminecraftlauncher.VersionProvider;
-import cd.cc.effirt.util.Log;
+import cd.cc.effirt.auroralib.Log;
 import com.google.gson.JsonObject;
 import net.lenni0451.commons.httpclient.HttpClient;
 import net.raphimc.minecraftauth.MinecraftAuth;

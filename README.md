@@ -1,25 +1,24 @@
 
-# WIP
-# kmcl
+# KinastMinecraftLauncher (kmcl)
 
 指令线矿工手艺发射器
 
-## 需求
-- Java 25 或更新版本
+## requirements
+- JDK 25 or newer
 - highiq
 
-## 建立
+## build
 
 ```
 ./gradlew build
 ```
 
-产出: `build/libs/KinastMinecraftLauncher.jar`
+output: `build/libs/kmcl.jar`
 
-## Running in the "90s"
+## runnnnnnnnn
 
 ```
-java -jar build/libs/KinastMinecraftLauncher.jar -h
+java -jar build/libs/kmcl.jar
 ```
 
 添加一个读我。

@@ -5,7 +5,7 @@ import java.io.InputStream;
 import java.time.Year;
 import java.util.Properties;
 
-import cd.cc.effirt.util.Log;
+import cd.cc.effirt.auroralib.Log;
 import picocli.CommandLine;
 
 public class VersionProvider implements CommandLine.IVersionProvider {

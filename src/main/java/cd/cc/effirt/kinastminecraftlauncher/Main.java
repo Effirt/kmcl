@@ -6,7 +6,7 @@ import cd.cc.effirt.kinastminecraftlauncher.command.AuthCommand;
 import cd.cc.effirt.kinastminecraftlauncher.command.InstanceCommand;
 import cd.cc.effirt.kinastminecraftlauncher.command.VersionCommand;
 import cd.cc.effirt.kinastminecraftlauncher.instance.launch.LaunchInstance;
-import cd.cc.effirt.util.Log;
+import cd.cc.effirt.auroralib.Log;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;

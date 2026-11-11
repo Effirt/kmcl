@@ -10,16 +10,20 @@ import cd.cc.effirt.kinastminecraftlauncher.util.Http;
 import cd.cc.effirt.kinastminecraftlauncher.util.JavaFinder;
 import cd.cc.effirt.kinastminecraftlauncher.util.ProgressBar;
 import cd.cc.effirt.kinastminecraftlauncher.util.XmlUtil;
-import cd.cc.effirt.util.Log;
+import cd.cc.effirt.auroralib.Log;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+import java.util.zip.ZipOutputStream;
 
 /**
  * NeoForge 安装流程（与 Forge 同属 “安装器 + processors” 体系）。
@@ -55,8 +59,8 @@ public class NeoForgeInstaller {
         }
         Log.info("NeoForge Loader version: {}", loader);
 
-        // 与 Forge 一致：直接用缓存里的原始安装器，不再生成 -mirror.jar 副本（native-image 下覆盖写缓存会失败）
-        Path runnable = downloadInstaller(loader);
+        // 先官方安装器，失败后 BMCLAPI 镜像；执行前把 json 内的仓库地址改写成镜像
+        Path runnable = patchInstallerForMirror(downloadInstaller(loader));
         boolean processed = runInstaller(runnable);
 
         JsonObject installProfile = InstallerRecords.readJsonFromZip(runnable, "install_profile.json");
@@ -83,7 +87,7 @@ public class NeoForgeInstaller {
 
     // ==================== 版本解析 ====================
 
-    /** 取同 MC 版本下最新的 NeoForge 构建（按数字段比较）。 */
+    /** 取同 MC 版本下最新的 NeoForge 构建：优先正式版，没有正式版才退回 beta。 */
     static String resolveLatest(String mcVersion) {
         List<String> matched = new ArrayList<>();
         for (String v : fetchVersions()) {
@@ -91,7 +95,21 @@ public class NeoForgeInstaller {
         }
         if (matched.isEmpty()) return null;
         matched.sort(NeoForgeInstaller::compareVersions);
-        return matched.getLast();
+
+        // 正式版优先（21.8.0-beta 这种预发布只在没有正式版时使用）
+        for (int i = matched.size() - 1; i >= 0; i--) {
+            if (!isPrerelease(matched.get(i))) return matched.get(i);
+        }
+        String beta = matched.getLast();
+        Log.warn("Only pre-release NeoForge builds found for {} (using {})", mcVersion, beta);
+        return beta;
+    }
+
+    /** beta / alpha / pre / rc 等预发布后缀。 */
+    static boolean isPrerelease(String version) {
+        String v = version.toLowerCase(java.util.Locale.ROOT);
+        return v.contains("-beta") || v.contains("-alpha")
+                || v.contains("-pre") || v.contains("-rc");
     }
 
     /** 列出某 MC 版本可用的 NeoForge 版本（由新到旧）。 */
@@ -135,7 +153,8 @@ public class NeoForgeInstaller {
     }
 
     private static List<String> fetchVersions() {
-        for (String url : new String[]{BMCLAPI_META, OFFICIAL_META}) {
+        // 先官方，再 BMCLAPI 镜像
+        for (String url : new String[]{OFFICIAL_META, BMCLAPI_META}) {
             try {
                 List<String> all = XmlUtil.readVersionTags(Http.get(url));
                 if (!all.isEmpty()) {
@@ -159,6 +178,9 @@ public class NeoForgeInstaller {
             int c = Integer.compare(va, vb);
             if (c != 0) return c;
         }
+        // 数字相同比预发布：正式版排在 beta 之后（升序时正式版更"大"）
+        boolean preA = isPrerelease(a), preB = isPrerelease(b);
+        if (preA != preB) return preA ? 1 : -1;
         return 0;
     }
 
@@ -177,6 +199,7 @@ public class NeoForgeInstaller {
         String onUrl = OFFICIAL_MAVEN + "net/neoforged/neoforge/" + loader + "/" + fileName;
         Log.info("Downloading NeoForge installer...");
         IOException first = null;
+        // 先官方，失败后 BMCLAPI 镜像
         for (String url : new String[]{onUrl, bmclUrl}) {
             try {
                 try (ProgressBar pb = new ProgressBar()) {
@@ -196,6 +219,52 @@ public class NeoForgeInstaller {
 
 
     // ==================== 执行安装器 ====================
+
+    /**
+     * 把安装器里 install_profile.json / version.json 的官方仓库地址改写成 BMCLAPI 镜像，
+     * 生成一个可执行的副本。
+     *
+     * <p>安装器进程会按 json 里的地址下载全部依赖；官方 maven.neoforged.net 在部分网络下
+     * 不可达时，不改写就必然 code 1 退出、processors 跑不完（实例启动时报
+     * {@code NoSuchElementException: No value present}）。</p>
+     */
+    private static Path patchInstallerForMirror(Path installer) throws IOException {
+        Path out = installer.getParent().resolve(
+                installer.getFileName().toString().replace(".jar", "-mirror.jar"));
+        boolean patched = false;
+        try (ZipFile zip = new ZipFile(installer.toFile());
+             ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(out))) {
+            var en = zip.entries();
+            while (en.hasMoreElements()) {
+                ZipEntry e = en.nextElement();
+                zos.putNextEntry(new ZipEntry(e.getName()));
+                try (InputStream in = zip.getInputStream(e)) {
+                    String name = e.getName();
+                    if (!e.isDirectory()
+                            && (name.equals("install_profile.json") || name.equals("version.json"))) {
+                        String s = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+                        String replaced = s
+                                .replace(OFFICIAL_MAVEN, BMCLAPI_MAVEN)
+                                .replace("http://maven.neoforged.net/releases/", BMCLAPI_MAVEN)
+                                .replace("https://maven.neoforged.net/releases", BMCLAPI_MAVEN)
+                                .replace("https://libraries.minecraft.net/",
+                                        "https://bmclapi2.bangbang93.com/libraries/")
+                                .replace("https://resources.download.minecraft.net/",
+                                        "https://bmclapi2.bangbang93.com/assets/");
+                        patched |= !replaced.equals(s);
+                        zos.write(replaced.getBytes(StandardCharsets.UTF_8));
+                    } else {
+                        in.transferTo(zos);
+                    }
+                }
+                zos.closeEntry();
+            }
+        }
+        if (!patched) {
+            Log.warn("No URL patched in NeoForge installer jar - mirror may not take effect");
+        }
+        return out;
+    }
 
     private static boolean runInstaller(Path installer) throws IOException {
         Path root = KMCLPath.getKmclPath();

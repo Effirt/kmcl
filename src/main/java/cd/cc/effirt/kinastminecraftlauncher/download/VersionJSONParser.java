@@ -1,6 +1,6 @@
 package cd.cc.effirt.kinastminecraftlauncher.download;
 
-import cd.cc.effirt.util.Log;
+import cd.cc.effirt.auroralib.Log;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -586,7 +586,11 @@ public final class VersionJSONParser {
 
     /** 合并结果为空时返回 null。 */
     private static JsonElement finishMerge(JsonObject args, JsonArray libs) {
-        if (args != null && !args.isEmpty()) return args;
+        if (args != null && args.isEmpty()) {
+            if (libs != null && !libs.isEmpty()) return libs;
+            return null;
+        }
+        if (args != null) return args;
         if (libs != null && !libs.isEmpty()) return libs;
         return null;
     }

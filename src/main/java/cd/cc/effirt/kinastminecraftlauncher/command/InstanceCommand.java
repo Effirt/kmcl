@@ -8,7 +8,7 @@ import cd.cc.effirt.kinastminecraftlauncher.exception.VersionNotFoundException;
 import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceList;
 import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceManager;
 import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceRegistry;
-import cd.cc.effirt.util.Log;
+import cd.cc.effirt.auroralib.Log;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;

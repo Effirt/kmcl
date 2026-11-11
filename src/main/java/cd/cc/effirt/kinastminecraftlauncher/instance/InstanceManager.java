@@ -3,7 +3,7 @@ package cd.cc.effirt.kinastminecraftlauncher.instance;
 import cd.cc.effirt.kinastminecraftlauncher.KMCLPath;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionInstaller;
 import cd.cc.effirt.kinastminecraftlauncher.util.FilesUtil;
-import cd.cc.effirt.util.Log;
+import cd.cc.effirt.auroralib.Log;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 

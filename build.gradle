@@ -10,7 +10,8 @@ java {
 	}
 }
 
-version = "1.21.5"
+group = "cd.cc.effirt"
+version = "${project.mod_version}"
 
 repositories {
 	mavenCentral()
@@ -20,23 +21,35 @@ repositories {
 		url = "https://maven.fabricmc.net/"
 	}
 	maven {
-		name = "jitpack"
+		name = "JitPack"
 		url = "https://jitpack.io"
 	}
 	maven {
-		name = "cursemaven"
+		name = "CurseMaven"
 		url = "https://www.cursemaven.com"
 		content {
 			includeGroup "curse.maven"
 		}
 	}
-	flatDir {
-		dirs "lib"
+	maven {
+		name = "Modrinth"
+		url = "https://api.modrinth.com/maven"
+		content {
+			includeGroup "maven.modrinth"
+		}
 	}
+	maven {
+		name = "AuroraLib"
+        url = uri("https://maven.pkg.github.com/Effirt/AuroraLib")
+		credentials {
+			username = project.findProperty("gpr.user")
+			password = project.findProperty("gpr.key")
+		}
+    }
 }
 
 dependencies {
-	implementation "Util:Util:1.0.0"
+	implementation "cd.cc.effirt:auroralib:1.0.0"
 
 	annotationProcessor "info.picocli:picocli-codegen:4.7.6"
 	implementation "info.picocli:picocli:4.7.6"
@@ -48,7 +61,7 @@ dependencies {
 
 compileJava {
 	options.compilerArgs += [
-		"-Aproject=cd.cc.effirt.${project.mod_package}"
+		"-Aproject=${project.group}.${project.mod_package}"
 	]
 }
 
@@ -64,14 +77,12 @@ shadowJar {
 	mergeServiceFiles()
 	manifest {
 		attributes(
-		"Main-Class": "cd.cc.effirt.${project.mod_package}.Main"
+				"Main-Class": "${project.group}.${project.mod_package}.Main",
+				"Implementation-Version": "${project.mod_version}"
 		)
 	}
 	exclude "META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA"
 	exclude "fabric.mod.json"
-	exclude "icon.png"
-	exclude "Example.mixin.json"
-	exclude "net/lenni0451/commons/httpclient/executor/extra/**"
 }
 
 processResources {

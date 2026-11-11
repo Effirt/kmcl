@@ -1,7 +1,7 @@
 package cd.cc.effirt.kinastminecraftlauncher.instance;
 
-import cd.cc.effirt.util.Log;
-import cd.cc.effirt.util.Table;
+import cd.cc.effirt.auroralib.Log;
+import cd.cc.effirt.auroralib.Table;
 
 import java.io.IOException;
 import java.util.Map;

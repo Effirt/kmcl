@@ -1,8 +1,10 @@
 package cd.cc.effirt.kinastminecraftlauncher.instance.launch;
 
-import cd.cc.effirt.util.Log;
+import cd.cc.effirt.auroralib.Log;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;

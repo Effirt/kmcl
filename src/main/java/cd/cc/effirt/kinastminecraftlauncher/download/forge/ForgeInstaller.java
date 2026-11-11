@@ -7,9 +7,10 @@ import cd.cc.effirt.kinastminecraftlauncher.download.VersionDownloader;
 import cd.cc.effirt.kinastminecraftlauncher.download.loader.Loaders;
 import cd.cc.effirt.kinastminecraftlauncher.util.Http;
 import cd.cc.effirt.kinastminecraftlauncher.util.JavaFinder;
+import cd.cc.effirt.kinastminecraftlauncher.util.Mirrors;
 import cd.cc.effirt.kinastminecraftlauncher.util.ProgressBar;
 import cd.cc.effirt.kinastminecraftlauncher.util.XmlUtil;
-import cd.cc.effirt.util.Log;
+import cd.cc.effirt.auroralib.Log;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -159,7 +160,7 @@ public class ForgeInstaller {
 
     /** 列出某 MC 版本可用的 Forge loader 版本（由新到旧）。 */
     public static List<String> listLoaders(String mcVersion) {
-        for (String meta : new String[]{BMCLAPI_FORGE_META, FORGE_META}) {
+        for (String meta : new String[]{FORGE_META, BMCLAPI_FORGE_META}) {
             try {
                 List<String> out = new ArrayList<>();
                 for (String tag : XmlUtil.readVersionTags(Http.get(meta))) {
@@ -216,7 +217,7 @@ public class ForgeInstaller {
         String official = FORGE_MAVEN + rel;
         Log.info("Downloading Forge installer...");
         IOException first = null;
-        for (String url : new String[]{bmcl, official}) {
+        for (String url : new String[]{official, bmcl}) {
             try {
                 try (ProgressBar pb = new ProgressBar()) {
                     pb.setCustomText(fileName);
@@ -273,7 +274,20 @@ public class ForgeInstaller {
             try (ProgressBar pb = new ProgressBar()) {
                 pb.setCustomText(dest.getFileName().toString());
                 pb.start();
-                Http.getDownload(BMCLAPI_MAVEN + mavenPath(coord), dest, pb);
+                // 官方优先，失败后换 BMCLAPI 镜像
+                List<String> sources = Mirrors.candidates(OFFICIAL_MAVEN + mavenPath(coord));
+                IOException last = null;
+                for (String url : sources) {
+                    try {
+                        Http.getDownload(url, dest, pb);
+                        last = null;
+                        break;
+                    } catch (IOException e) {
+                        last = e;
+                        Files.deleteIfExists(dest);
+                    }
+                }
+                if (last != null) throw last;
             } catch (IOException e) {
                 Files.deleteIfExists(dest);
                 Log.warn("Failed to pre-download processor library {}: {}", coord, e.getMessage());

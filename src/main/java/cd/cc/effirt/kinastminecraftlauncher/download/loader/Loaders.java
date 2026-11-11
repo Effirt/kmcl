@@ -5,7 +5,7 @@ import cd.cc.effirt.kinastminecraftlauncher.download.VersionDownloader;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionJSONParser;
 import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceInfoRecord;
 import cd.cc.effirt.kinastminecraftlauncher.instance.InstanceRegistry;
-import cd.cc.effirt.util.Log;
+import cd.cc.effirt.auroralib.Log;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 

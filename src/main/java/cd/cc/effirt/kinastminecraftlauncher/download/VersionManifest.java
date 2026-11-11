@@ -1,6 +1,6 @@
 package cd.cc.effirt.kinastminecraftlauncher.download;
 
-import cd.cc.effirt.util.Log;
+import cd.cc.effirt.auroralib.Log;
 import cd.cc.effirt.kinastminecraftlauncher.util.Http;
 import cd.cc.effirt.kinastminecraftlauncher.util.ProgressBar;
 import com.google.gson.JsonArray;

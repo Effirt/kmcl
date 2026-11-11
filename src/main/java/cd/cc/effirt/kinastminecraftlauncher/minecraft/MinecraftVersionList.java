@@ -1,8 +1,8 @@
 package cd.cc.effirt.kinastminecraftlauncher.minecraft;
 
-import cd.cc.effirt.util.Log;
+import cd.cc.effirt.auroralib.Log;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionManifest;
-import cd.cc.effirt.util.Table;
+import cd.cc.effirt.auroralib.Table;
 
 import java.util.Set;
 

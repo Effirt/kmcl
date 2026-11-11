@@ -4,7 +4,7 @@ import cd.cc.effirt.kinastminecraftlauncher.KMCLPath;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionDownloader;
 import cd.cc.effirt.kinastminecraftlauncher.download.loader.Loaders;
 import cd.cc.effirt.kinastminecraftlauncher.exception.VersionNotFoundException;
-import cd.cc.effirt.util.Log;
+import cd.cc.effirt.auroralib.Log;
 import cd.cc.effirt.kinastminecraftlauncher.util.Http;
 import com.google.gson.*;
 
@@ -55,25 +55,6 @@ public class FabricInstaller {
             return false;
         } catch (IOException _) {
             return true;   // 网络问题时不要直接否决
-        }
-    }
-
-    /** 列出某 MC 版本可用的 Fabric Loader 版本（由新到旧）。 */
-    public static java.util.List<String> listLoaders(String mcVersion) {
-        try {
-            JsonArray loaders = parseArray(Http.get(META + mcVersion), "fabric loader list " + mcVersion);
-            java.util.List<String> out = new java.util.ArrayList<>();
-            for (JsonElement el : loaders) {
-                if (el instanceof JsonObject entry
-                        && entry.get("loader") instanceof JsonObject loader
-                        && loader.get("version") instanceof JsonPrimitive v) {
-                    out.add(v.getAsString());
-                }
-            }
-            return out;
-        } catch (IOException e) {
-            Log.warn("Failed to list Fabric loaders for {}: {}", mcVersion, e.getMessage());
-            return java.util.List.of();
         }
     }
 
