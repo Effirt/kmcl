@@ -26,7 +26,7 @@ public class VersionProvider implements CommandLine.IVersionProvider {
 
     @Override
     public String[] getVersion() {
-        return new String[]{"Kinast Minecraft Launcher " + doLoadVersion(), "Copyright " + Year.now() + " Effirt", "License MIT"};
+        return new String[]{"Kinast Minecraft Launcher " + doLoadVersion(), "Copyright " + Year.now() + " Effirt - License MIT"};
     }
 
     public static String getVer() {

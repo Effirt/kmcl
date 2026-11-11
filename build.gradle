@@ -10,8 +10,7 @@ java {
 	}
 }
 
-version = "0.7.98"
-group = "kinastminecraftlauncher"
+version = "1.21.5"
 
 repositories {
 	mavenCentral()
@@ -49,7 +48,7 @@ dependencies {
 
 compileJava {
 	options.compilerArgs += [
-		"-Aproject=cd.cc.effirt.${project.group}"
+		"-Aproject=cd.cc.effirt.${project.mod_package}"
 	]
 }
 
@@ -59,12 +58,13 @@ jar {
 }
 
 shadowJar {
+	archiveBaseName.set("${project.mod_name}")
 	archiveClassifier.set("")
 	archiveVersion.set("")
 	mergeServiceFiles()
 	manifest {
 		attributes(
-		"Main-Class": "cd.cc.effirt.${project.group}.Main"
+		"Main-Class": "cd.cc.effirt.${project.mod_package}.Main"
 		)
 	}
 	exclude "META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA"
@@ -74,10 +74,10 @@ shadowJar {
 	exclude "net/lenni0451/commons/httpclient/executor/extra/**"
 }
 
-processResources {	
-	def ver = project.version
-	inputs.property "ver", ver
+processResources {
+	def modVersion = project.mod_version
+	inputs.property "version", modVersion
 	filesMatching("kmcl.properties") {
-		expand "version": ver
+		expand "version": modVersion
 	}
 }
