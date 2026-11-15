@@ -155,8 +155,12 @@ public class NeoForgeInstaller {
     private static List<String> fetchVersions() {
         // 先官方，再 BMCLAPI 镜像
         for (String url : new String[]{OFFICIAL_META, BMCLAPI_META}) {
-            try {
-                List<String> all = XmlUtil.readVersionTags(Http.get(url));
+            try (ProgressBar pb = new ProgressBar()) {
+                pb.setProgressBar(false);
+                pb.setSpinner(true);
+                pb.setCustomText("maven-metadata.xml");
+                pb.start();
+                List<String> all = XmlUtil.readVersionTags(Http.get(url, pb));
                 if (!all.isEmpty()) {
                     Log.info("Getting {} NeoForge versions...", all.size());
                     return all;
@@ -283,40 +287,45 @@ public class NeoForgeInstaller {
         }
 
         Path java = JavaFinder.findAny();
-        Log.info("Running NeoForge installer with '{}'...", java);
+        try (ProgressBar prb = new ProgressBar()) {
+            Log.info("Running NeoForge installer with '{}'...", java);
+            prb.setProgressBar(false);
+            prb.setSpinner(true);
+            prb.start();
 
-        List<String> cmd = new ArrayList<>();
-        cmd.add(java.toAbsolutePath().toString());
-        cmd.add("-Dhttp.agent=curl/8.21.0");
-        String proxyHost = System.getProperty("https.proxyHost");
-        String proxyPort = System.getProperty("https.proxyPort");
-        if (proxyHost != null && proxyPort != null) {
-            cmd.add("-Dhttps.proxyHost=" + proxyHost);
-            cmd.add("-Dhttps.proxyPort=" + proxyPort);
-        }
-        cmd.add("-jar");
-        cmd.add(installer.toAbsolutePath().toString());
-        cmd.add("--installClient");
-        cmd.add(root.toAbsolutePath().toString());
-
-        ProcessBuilder pb = new ProcessBuilder(cmd)
-                .directory(root.toFile())
-                .redirectErrorStream(false);
-        pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-        pb.redirectError(ProcessBuilder.Redirect.INHERIT);
-
-        Process proc = pb.start();
-        try {
-            int code = proc.waitFor();
-            if (code != 0) {
-                Log.warn("NeoForge installer exited with code {}", code);
-                return false;
+            List<String> cmd = new ArrayList<>();
+            cmd.add(java.toAbsolutePath().toString());
+            cmd.add("-Dhttp.agent=curl/8.21.0");
+            String proxyHost = System.getProperty("https.proxyHost");
+            String proxyPort = System.getProperty("https.proxyPort");
+            if (proxyHost != null && proxyPort != null) {
+                cmd.add("-Dhttps.proxyHost=" + proxyHost);
+                cmd.add("-Dhttps.proxyPort=" + proxyPort);
             }
-            return true;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            proc.destroyForcibly();
-            throw new IOException("Interrupted while running NeoForge installer", e);
+            cmd.add("-jar");
+            cmd.add(installer.toAbsolutePath().toString());
+            cmd.add("--installClient");
+            cmd.add(root.toAbsolutePath().toString());
+
+            ProcessBuilder pb = new ProcessBuilder(cmd)
+                    .directory(root.toFile())
+                    .redirectErrorStream(false);
+            pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+            pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+
+            Process proc = pb.start();
+            try {
+                int code = proc.waitFor();
+                if (code != 0) {
+                    Log.warn("NeoForge installer exited with code {}", code);
+                    return false;
+                }
+                return true;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                proc.destroyForcibly();
+                throw new IOException("Interrupted while running NeoForge installer", e);
+            }
         }
     }
 

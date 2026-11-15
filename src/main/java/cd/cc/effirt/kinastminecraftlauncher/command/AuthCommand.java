@@ -30,7 +30,7 @@ public class AuthCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
-        spec.commandLine().usage(spec.commandLine().getErr());
+        spec.commandLine().usage(System.err);
         return USAGE;
     }
 
