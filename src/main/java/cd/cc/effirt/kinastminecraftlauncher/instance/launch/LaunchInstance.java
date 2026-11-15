@@ -273,7 +273,6 @@ public class LaunchInstance {
         v.put("library_directory", DEFAULT_MC_ROOT.resolve("libraries").toString());
         v.put("classpath_separator", File.pathSeparator);
         v.put("clientid", "kmcl");
-
         return v;
     }
 
@@ -336,65 +335,26 @@ public class LaunchInstance {
     // ==================== Java ====================
 
     /**
-     * 取一个满足 {@code info.javaVersion()} 的 JVM。
-     *
-     * <p>找不到正好相等的版本时按“就近”回退（与主流启动器一致）：</p>
-     * <ul>
-     *   <li>要求 Java 8 及以上：取能启动该版本的最新 Java（取不到更低版本）；</li>
-     *   <li>要求更老（1.16.5 及以前的 Java 8 档）：取最接近的版本，低版本优先；</li>
-     *   <li>新旧都不够/不可启动时，依次退到 JAVA_HOME → PATH → 系统 JVM，并给出警告。</li>
-     * </ul>
+     * 取一个满足 {@code info.javaVersion()} 的 JVM
      */
     private static Path resolveJava(VersionInfo info) {
-        int required = (info.javaVersion() != null && info.javaVersion().majorVersion() > 0)
-                ? info.javaVersion().majorVersion() : 21;
+        int required = (info.javaVersion() != null) ? info.javaVersion().majorVersion() : 21;
 
-        List<JavaCandidate> found = scanJavaCandidates();
+        List<JavaCandidateRecord> found = scanJavaCandidates();
         Path exact = pick(found, required);
         if (exact != null) {
             Log.info("Using Java {} from '{}'", required, exact);
             return exact;
         }
 
-        Path best = pickNearest(found, required);
-        if (best != null) {
-            int actual = majorVersion(best);
-            Log.warn("No java{} found, falling back to java{} at '{}'", required, actual, best);
-            return best;
-        }
-
-        Path any = firstUsable(found);
-        if (any != null) {
-            Log.warn("No nearly-matching Java found, falling back to '{}'", any);
-            return any;
-        }
-
-        try {
-            Path fallback = JavaFinder.findAny();
-            Log.warn("No java{} found, falling back to {}", required, fallback);
-            return fallback;
-        } catch (IOException e) {
-            Log.warn("No java at all found: {}", e.getMessage());
-            String sys = System.getProperty("java.home");
-            if (sys != null && !sys.isBlank()) {
-                return Path.of(sys, "bin", javaName());
-            }
-            throw new IllegalStateException(
-                    "No Java runtime found. Please install JDK or set JAVA_HOME.");
-        }
-    }
-
-    /** 已探测过的 java 可执行文件（路径 + 主版本号）。 */
-    private record JavaCandidate(Path path, int major) {
+        throw new IllegalStateException("No Java runtime found");
     }
 
     /**
-     * 依次扫描 JAVA_HOME、PATH 与常见安装目录，逐个探测主版本号。
-     *
-     * <p>常见目录覆盖 jdk-17 / jdk-21 这类顺序命名与 Temurin / GraalVM / 本机 JDK 安装。</p>
+     * 依次扫描 JAVA_HOME、PATH 与常见安装目录，逐个探测主版本号
      */
-    private static List<JavaCandidate> scanJavaCandidates() {
-        List<JavaCandidate> out = new ArrayList<>();
+    private static List<JavaCandidateRecord> scanJavaCandidates() {
+        List<JavaCandidateRecord> out = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
 
         List<Path> candidates = new ArrayList<>();
@@ -410,7 +370,6 @@ public class LaunchInstance {
                 }
             }
         }
-        candidates.addAll(commonJavaHomes());
 
         for (Path java : candidates) {
             Path p = java.toAbsolutePath().normalize();
@@ -418,78 +377,14 @@ public class LaunchInstance {
             if (!Files.isRegularFile(p)) continue;
             int v = majorVersion(p);
             if (v < 0) continue;
-            out.add(new JavaCandidate(p, v));
+            out.add(new JavaCandidateRecord(p, v));
         }
         return out;
     }
 
-    /** 常见 Java 安装位置（Windows 的 Program Files、Linux 的 /usr/lib/jvm、macOS 的 /Library/Java 以及 SDKMAN）。 */
-    private static List<Path> commonJavaHomes() {
-        List<Path> out = new ArrayList<>();
-        List<Path> roots = new ArrayList<>();
-        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
-        if (os.contains("win")) {
-            for (String env : new String[]{"ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"}) {
-                String v = System.getenv(env);
-                if (v != null && !v.isBlank()) {
-                    roots.add(Path.of(v, "Java"));
-                    roots.add(Path.of(v, "Eclipse Adoptium"));
-                    roots.add(Path.of(v, "Zulu"));
-                    roots.add(Path.of(v, "Microsoft"));
-                }
-            }
-        } else if (os.contains("mac")) {
-            roots.add(Path.of("/Library/Java/JavaVirtualMachines"));
-        } else {
-            roots.add(Path.of("/usr/lib/jvm"));
-            String sdkman = System.getenv("SDKMAN_DIR");
-            if (sdkman != null && !sdkman.isBlank()) {
-                roots.add(Path.of(sdkman, "candidates", "java"));
-            }
-        }
-        for (Path root : roots) {
-            if (!Files.isDirectory(root)) continue;
-            try (var s = Files.list(root)) {
-                s.sorted().forEach(p -> {
-                    out.add(p.resolve("bin").resolve(javaName()));
-                    out.add(p.resolve("Contents").resolve("Home").resolve("bin").resolve(javaName()));
-                });
-            } catch (IOException _) {
-                // 目录不可读就跳过
-            }
-        }
-        return out;
-    }
-
-    private static Path pick(List<JavaCandidate> found, int required) {
-        for (JavaCandidate c : found) {
+    private static Path pick(List<JavaCandidateRecord> found, int required) {
+        for (JavaCandidateRecord c : found) {
             if (c.major() == required) return c.path();
-        }
-        return null;
-    }
-
-    /** 就近回退：Java 8 及以上取比要求新的里最老的，否则取比要求旧的里最新。 */
-    private static Path pickNearest(List<JavaCandidate> found, int required) {
-        JavaCandidate newer = null;
-        JavaCandidate older = null;
-        for (JavaCandidate c : found) {
-            if (c.major() > required) {
-                if (newer == null || c.major() < newer.major()) newer = c;
-            } else if (c.major() < required) {
-                if (older == null || c.major() > older.major()) older = c;
-            }
-        }
-        if (newer != null) return newer.path();
-        if (required >= 8) {
-            Log.warn("Java{} or newer is required, but only older runtimes were found", required);
-            return null;
-        }
-        return older == null ? null : older.path();
-    }
-
-    private static Path firstUsable(List<JavaCandidate> found) {
-        for (JavaCandidate c : found) {
-            if (c.major() >= 8) return c.path();
         }
         return null;
     }

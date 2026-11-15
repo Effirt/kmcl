@@ -48,8 +48,7 @@ public class VersionInstaller {
      *
      * @param jarName 实例目录下的目标文件名，默认 {@code <mcVersion>.jar}
      */
-    public static void installClient(String instanceName, VersionJSONParser.VersionInfo info,
-                                     int maxAttempts, String jarName) throws IOException {
+    public static void installClient(String instanceName, VersionJSONParser.VersionInfo info, int maxAttempts, String jarName) throws IOException {
         var dl = info.downloads();
         if (dl == null || dl.client() == null || dl.client().url() == null)
             throw new IOException("version JSON has no downloads.client for id=" + info.id());
@@ -61,14 +60,15 @@ public class VersionInstaller {
         var art = dl.client();
         var dest = KMCLPath.getKmclPath().resolve("versions").resolve(instanceName).resolve(jarName);
         Files.createDirectories(dest.getParent());
-        if (Files.exists(dest) && art.size() > 0 && Files.size(dest) == art.size()) {
-            return;
-        }
 
         Log.info("Downloading {}.jar...", mcVersion);
         try (var pb = new ProgressBar()) {
             pb.setCustomText(mcVersion + ".jar");
             pb.start();
+            if (Files.exists(dest) && art.size() > 0 && Files.size(dest) == art.size()) {
+                pb.finish();
+                return;
+            }
             DownloadBatch.one(new DownloadBatch.Task(dl.client().url(), dl.client().size(), dest),
                     maxAttempts, pb);
         }
@@ -142,7 +142,6 @@ public class VersionInstaller {
             } else if (hasMavenCoordinateOnly(lib)) {
                 // 已由安装器（Forge/NeoForge processors）放进 libraries/
                 path = lib.mavenPath();
-                url = null;
             } else {
                 Log.warn("Skip library without resolvable URL: {}", lib.name());
                 skipped++;
@@ -163,7 +162,7 @@ public class VersionInstaller {
 
         long mirrorable = tasks.stream()
                 .filter(t -> Mirrors.mirrorable(t.url())).count();
-        Log.info("Installing {} libraries, {} natives, {} skipped, {} mirror-fallback...",
+        Log.info("Installing {} libraries, {} natives, {} skip, {} mirror-fallback...",
                 tasks.size(), natives.size(), skipped, mirrorable);
         DownloadBatch.run(tasks, maxAttempts, "libraries");
 

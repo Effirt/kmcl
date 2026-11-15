@@ -71,7 +71,7 @@ public class AccountStorage {
                         try {
                             Account old = read(f);
                             if (old != null && old.uuid().equals(account.uuid())) toDelete.add(f);
-                        } catch (Exception ignored) {}
+                        } catch (Exception _) {}
                     });
         }
         for (Path f : toDelete) Files.deleteIfExists(f);

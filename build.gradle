@@ -15,7 +15,6 @@ version = "${project.mod_version}"
 
 repositories {
 	mavenCentral()
-	gradlePluginPortal()
 	maven {
 		name = "Fabric"
 		url = "https://maven.fabricmc.net/"
@@ -27,44 +26,28 @@ repositories {
 	maven {
 		name = "CurseMaven"
 		url = "https://www.cursemaven.com"
-		content {
-			includeGroup "curse.maven"
-		}
 	}
 	maven {
 		name = "Modrinth"
 		url = "https://api.modrinth.com/maven"
-		content {
-			includeGroup "maven.modrinth"
-		}
 	}
-	maven {
-		name = "AuroraLib"
-        url = uri("https://maven.pkg.github.com/Effirt/AuroraLib")
-		credentials {
-			username = project.findProperty("gpr.user")
-			password = project.findProperty("gpr.key")
-		}
-    }
 }
 
 dependencies {
-	implementation "cd.cc.effirt:auroralib:1.0.0"
+	implementation "com.github.Effirt:AuroraLib:1.0.0"
 
-	annotationProcessor "info.picocli:picocli-codegen:4.7.6"
 	implementation "info.picocli:picocli:4.7.6"
+	annotationProcessor "info.picocli:picocli-codegen:4.7.6"
 
-	implementation "com.google.code.gson:gson:2.13.1"
-	implementation "net.raphimc:MinecraftAuth:5.0.2"
+	implementation "com.google.code.gson:gson:${project.gson}"
+	implementation "net.raphimc:MinecraftAuth:${project.MinecraftAuth}"
 }
-
 
 compileJava {
 	options.compilerArgs += [
 		"-Aproject=${project.group}.${project.mod_package}"
 	]
 }
-
 
 jar {
 	enabled = false
@@ -77,12 +60,12 @@ shadowJar {
 	mergeServiceFiles()
 	manifest {
 		attributes(
-				"Main-Class": "${project.group}.${project.mod_package}.Main",
-				"Implementation-Version": "${project.mod_version}"
+			"Main-Class": "${project.group}.${project.mod_package}.Main",
+			"Implementation-Version": "${project.mod_version}"
 		)
 	}
 	exclude "META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA"
-	exclude "fabric.mod.json"
+	exclude "net/lenni0451/commons/httpclient/executor/extra/**"
 }
 
 processResources {

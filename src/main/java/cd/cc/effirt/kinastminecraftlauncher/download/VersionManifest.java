@@ -71,9 +71,9 @@ public class VersionManifest {
 
     private static String fetchRaw() {
         try (ProgressBar pb = new ProgressBar()) {
+            Log.info("Getting manifest...");
             pb.setCustomText("version_manifest.json");
             pb.start();
-            Log.info("Getting manifest...");
             return Http.get(MANIFEST_URL, pb);
         } catch (IOException e) {
             Log.error("Failed to get manifest", e);

@@ -10,7 +10,6 @@ import java.util.List;
  * 这时自动回退到镜像 {@code https://bmclapi2.bangbang93.com/maven/}。</p>
  */
 public class Mirrors {
-
     public static final String BMCLAPI_MAVEN = "https://bmclapi2.bangbang93.com/maven/";
 
     /** 官方地址 → 镜像地址，按顺序替换。 */

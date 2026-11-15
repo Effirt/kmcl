@@ -19,7 +19,7 @@ import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.regex.Pattern;
 
-public final class Http {
+public class Http {
     //private static final String USER_AGENT = "KinastMinecraftLauncher/" + VersionProvider.getVer();
     //fuck bmcl api。成功改造了userAgent
     private static final String USER_AGENT =
@@ -92,8 +92,13 @@ public final class Http {
             long contentLength = response.headers()
                     .firstValueAsLong("Content-Length")
                     .orElse(-1L);
-            if (contentLength > 0 && pb != null) {
-                pb.setTodo(contentLength);
+            if (pb != null) {
+                if (contentLength > 0) {
+                    pb.setSpinner(false);
+                    pb.setTodo(contentLength);
+                } else {
+                    pb.setSpinner(true);
+                }
             }
 
             try (InputStream in = response.body()) {
@@ -161,11 +166,15 @@ public final class Http {
             long contentLength = response.headers()
                     .firstValueAsLong("Content-Length")
                     .orElse(-1L);
-            if (pb != null && contentLength > 0) {
-                pb.setTodo(contentLength);
+            if (pb != null) {
+                if (contentLength > 0) {
+                    pb.setSpinner(false);
+                    pb.setTodo(contentLength);
+                } else {
+                    pb.setSpinner(true);
+                }
             }
 
-            // 临时文件尽量放在目标同目录，避免跨文件系统 move 失败
             String prefix = target.getFileName().toString();
             temp = (parent != null)
                     ? Files.createTempFile(parent, prefix, ".part")
@@ -189,7 +198,7 @@ public final class Http {
             }
 
             Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
-            temp = null; // 已成功移动，避免 finally 误删
+            temp = null;
             return target.toString();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

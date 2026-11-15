@@ -19,7 +19,7 @@ public class VersionProvider implements CommandLine.IVersionProvider {
             String s = p.getProperty("version");
             return (s == null || s.isBlank()) ? "0.0.0" : s;
         } catch (IOException e) {
-            Log.debug("Failed to read '{}'", VERSION_RESOURCE, e);
+            Log.error("Failed to read '{}'", VERSION_RESOURCE, e);
             return "0.0.0";
         }
     }

@@ -1,10 +1,11 @@
 package cd.cc.effirt.kinastminecraftlauncher.util;
 
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class ProgressBar implements AutoCloseable {
     private static final int WIDTH = 20;
-    private static final long REFRESH_MS = 111;
+    private static final long REFRESH_MS = 120;
     private final Thread thread;
     private volatile String customText = "";
     private volatile long done;
@@ -12,6 +13,10 @@ public class ProgressBar implements AutoCloseable {
     private volatile boolean finished;
     private volatile boolean finalLinePrinted;
     private final AtomicLong version = new AtomicLong();
+    private volatile boolean spinner = false;
+    private volatile boolean progressBar = true;
+    private static final String[] spinnerChar = {"|", "/", "-", "\\"};
+    private final AtomicInteger spinnerIndex = new AtomicInteger(0);
 
     public ProgressBar() {
         this.thread = createThread();
@@ -22,7 +27,6 @@ public class ProgressBar implements AutoCloseable {
     }
 
     private Thread createThread() {
-
         Thread t = new Thread(() -> {
             long seenVersion = -1L;
             try {
@@ -30,16 +34,26 @@ public class ProgressBar implements AutoCloseable {
                     long d = done;
                     long tt = todo;
                     long v = version.get();
-                    if (v != seenVersion) {
-                        seenVersion = v;
-                        if (tt > 0) {
-                            IO.print(format(d, tt, customText) + "\r");
+                    boolean needRender;
 
-                            if (d >= tt) {
-                                IO.println();
-                                finalLinePrinted = true;
-                                return;
-                            }
+                    if (spinner) {
+                        needRender = true;
+                    } else {
+                        needRender = v != seenVersion;
+                    }
+
+                    if (needRender) {
+                        seenVersion = v;
+                        IO.print(format(d, tt, customText, spinner, spinnerIndex.get(), progressBar) + "\r");
+
+                        if (tt > 0 && d >= tt) {
+                            IO.println();
+                            finalLinePrinted = true;
+                            return;
+                        }
+
+                        if (spinner) {
+                            spinnerIndex.set((spinnerIndex.get() + 1) % spinnerChar.length);
                         }
                     }
                     Thread.sleep(REFRESH_MS);
@@ -52,7 +66,7 @@ public class ProgressBar implements AutoCloseable {
         return t;
     }
 
-    private static String format(long done, long todo, String customText) {
+    private static String format(long done, long todo, String customText, boolean spinner, int spinnerFps, boolean progressBar) {
         int filled;
         long pct;
         if (todo > 0) {
@@ -64,9 +78,19 @@ public class ProgressBar implements AutoCloseable {
         }
 
         StringBuilder sb = new StringBuilder(WIDTH + 32);
-        sb.append(String.format("%3d%% ", pct));
-        sb.append("█".repeat(filled));
-        sb.append("-".repeat(WIDTH - filled));
+        sb.append(" ");
+        if (spinner) {
+            sb.append(spinnerChar[spinnerFps]).append(" ");
+        } else {
+            sb.append("  ");
+        }
+        if (progressBar) {
+            sb.append(String.format("%3d%% ", pct));
+            sb.append("█".repeat(filled));
+            sb.append("-".repeat(WIDTH - filled));
+        } else {
+            sb.append(" ".repeat(5 + WIDTH));
+        }
         if (customText != null && !customText.isEmpty()) {
             sb.append(" ").append(customText).append(" ".repeat(5));
         }
@@ -88,6 +112,16 @@ public class ProgressBar implements AutoCloseable {
         version.incrementAndGet();
     }
 
+    public void setSpinner(boolean b) {
+        spinner = b;
+        version.incrementAndGet();
+    }
+
+    public void setProgressBar(boolean b) {
+        progressBar = b;
+        version.incrementAndGet();
+    }
+
     public void finish() {
         finished = true;
         thread.interrupt();
@@ -101,7 +135,7 @@ public class ProgressBar implements AutoCloseable {
             return;
         }
         finalLinePrinted = true;
-        IO.print(format(done, todo, customText) + System.lineSeparator());
+        IO.print(format(done, todo, customText, spinner, spinnerIndex.get(), progressBar) + System.lineSeparator());
     }
 
     @Override

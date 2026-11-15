@@ -62,16 +62,20 @@ public class InstanceCommand implements Callable<Integer> {
         String mcVersion;
 
         @Option(names = {"-l", "--loader"}, defaultValue = "vanilla", paramLabel = "<loader>",
-                description = "Loader: vanilla / forge / fabric / neoforge")
+                description = "Loader")
         String loaderToken;
 
         @Option(names = {"-lv", "--loader-version"}, paramLabel = "<loaderVersion>",
-                description = "Loader version (defaults to recommended/latest)")
+                description = "Loader version")
         String loaderVersion;
 
         @Option(names = {"--retry"}, defaultValue = "5",
                 description = "Retry attempts on download failure")
         int retry;
+
+        @Option(names = {"--force", "-f"},
+                description = "Force add instance")
+        boolean force;
 
         @Override
         public Integer call() {
@@ -83,7 +87,7 @@ public class InstanceCommand implements Callable<Integer> {
                 return USAGE;
             }
             try {
-                if (InstanceRegistry.get(name) != null) {
+                if (InstanceRegistry.get(name) != null && !force) {
                     Log.error("Instance already exists: {}", name);
                     return FAILED;
                 }

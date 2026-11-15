@@ -141,6 +141,7 @@ public class ForgeInstaller {
             Files.createDirectories(cached.getParent());
             try (ProgressBar pb = new ProgressBar()) {
                 pb.setCustomText("forge-promotions.json");
+                pb.setProgressBar(false);
                 pb.start();
                 Http.getDownload(FORGE_PROMOS, cached, pb);
             }
@@ -368,46 +369,52 @@ public class ForgeInstaller {
         }
 
         Path java = JavaFinder.findAny();
-        Log.info("Running Forge installer with '{}'...", java);
+        try (ProgressBar prb = new ProgressBar()) {
+            prb.setSpinner(true);
+            prb.setProgressBar(false);
+            prb.setCustomText("Running Forge installer...");
+            prb.start();
+            Log.info("Running Forge installer with '{}'...", java);
 
-        List<String> cmd = new ArrayList<>();
-        cmd.add(java.toAbsolutePath().toString());
-        cmd.add("-Dhttp.agent=curl/8.21.0");
-        String proxyHost = System.getProperty("https.proxyHost");
-        String proxyPort = System.getProperty("https.proxyPort");
-        if (proxyHost != null && proxyPort != null) {
-            cmd.add("-Dhttps.proxyHost=" + proxyHost);
-            cmd.add("-Dhttps.proxyPort=" + proxyPort);
-            String httpHost = System.getProperty("http.proxyHost");
-            String httpPort = System.getProperty("http.proxyPort");
-            if (httpHost != null && httpPort != null) {
-                cmd.add("-Dhttp.proxyHost=" + httpHost);
-                cmd.add("-Dhttp.proxyPort=" + httpPort);
+            List<String> cmd = new ArrayList<>();
+            cmd.add(java.toAbsolutePath().toString());
+            cmd.add("-Dhttp.agent=curl/8.21.0");
+            String proxyHost = System.getProperty("https.proxyHost");
+            String proxyPort = System.getProperty("https.proxyPort");
+            if (proxyHost != null && proxyPort != null) {
+                cmd.add("-Dhttps.proxyHost=" + proxyHost);
+                cmd.add("-Dhttps.proxyPort=" + proxyPort);
+                String httpHost = System.getProperty("http.proxyHost");
+                String httpPort = System.getProperty("http.proxyPort");
+                if (httpHost != null && httpPort != null) {
+                    cmd.add("-Dhttp.proxyHost=" + httpHost);
+                    cmd.add("-Dhttp.proxyPort=" + httpPort);
+                }
             }
-        }
-        cmd.add("-jar");
-        cmd.add(installer.toAbsolutePath().toString());
-        cmd.add("--installClient");
-        cmd.add(root.toAbsolutePath().toString());
+            cmd.add("-jar");
+            cmd.add(installer.toAbsolutePath().toString());
+            cmd.add("--installClient");
+            cmd.add(root.toAbsolutePath().toString());
 
-        ProcessBuilder pb = new ProcessBuilder(cmd)
-                .directory(root.toFile())
-                .redirectErrorStream(false);
-        pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-        pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+            ProcessBuilder pb = new ProcessBuilder(cmd)
+                    .directory(root.toFile())
+                    .redirectErrorStream(false);
+            pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+            pb.redirectError(ProcessBuilder.Redirect.INHERIT);
 
-        Process proc = pb.start();
-        try {
-            int code = proc.waitFor();
-            if (code != 0) {
-                Log.warn("Forge installer exited with code {}", code);
-                return false;
+            Process proc = pb.start();
+            try {
+                int code = proc.waitFor();
+                if (code != 0) {
+                    Log.warn("Forge installer exited with code {}", code);
+                    return false;
+                }
+                return true;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                proc.destroyForcibly();
+                throw new IOException("Interrupted while running Forge installer", e);
             }
-            return true;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            proc.destroyForcibly();
-            throw new IOException("Interrupted while running Forge installer", e);
         }
     }
 
