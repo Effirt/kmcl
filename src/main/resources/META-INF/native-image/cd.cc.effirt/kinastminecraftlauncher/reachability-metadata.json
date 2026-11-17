@@ -281,8 +281,6 @@
   "allPublicConstructors": true,
   "allDeclaredMethods": true,
   "allPublicMethods": true,
-  "queryAllDeclaredMethods": true,
-  "queryAllPublicMethods": true,
   "allDeclaredFields": true,
   "unsafeAllocated": true
 },
