@@ -77,7 +77,7 @@ public class ProgressBar implements AutoCloseable {
             pct = 0L;
         }
 
-        StringBuilder sb = new StringBuilder(WIDTH + 32);
+        StringBuilder sb = new StringBuilder();
         sb.append(" ");
         if (spinner) {
             sb.append(spinnerChar[spinnerFps]).append(" ");
