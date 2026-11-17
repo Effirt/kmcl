@@ -30,7 +30,9 @@ public class VersionProvider implements CommandLine.IVersionProvider {
 
     @Override
     public String[] getVersion() {
-        return new String[]{"Kinast Minecraft Launcher " + doLoadVersion(), JAVA_RUNTIME_NAME + " " + JAVA_RUNTIME_VERSION + ", " + OS_NAME + " " + OS_ARCH, "Copyright " + Year.now() + " Effirt - License MIT"};
+        return new String[]{"Kinast Minecraft Launcher " + doLoadVersion(),
+                JAVA_RUNTIME_NAME + " " + JAVA_RUNTIME_VERSION + ", " + OS_NAME + " " + OS_ARCH,
+                "Copyright " + Year.now() + " Effirt - License MIT"};
     }
 
     public static String getVer() {
