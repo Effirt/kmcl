@@ -282,9 +282,40 @@ public class LaunchInstance {
         Path libsDir = DEFAULT_MC_ROOT.resolve("libraries");
         boolean modern = info.arguments() != null;
 
+        // 同一 group:artifact[:classifier] 在 classpath 上只能有一个版本。
+        //
+        // 原版 JSON 与 loader（Fabric/NeoForge）会各自声明同一库的不同版本，
+        // 例如原版给了 org.ow2.asm:asm:9.6、Fabric 给了 9.10.1；两者同时进 classpath 时
+        // Fabric 的 LoaderUtil.verifyClasspath 会直接抛
+        // “duplicate ASM classes found on classpath” 而启动失败。
+        // 这里按坐标去重，保留版本号最高的那个（向后兼容、能满足 loader 要求）。
+        Map<String, Library> chosen = new HashMap<>();
+        if (modern) {
+            for (Library lib : info.libraries()) {
+                if (!lib.isAllowed()) continue;
+                String key = libraryKey(lib);
+                if (key == null || lib.version() == null) continue;
+                Library prev = chosen.get(key);
+                if (prev == null || compareVersions(lib.version(), prev.version()) > 0) {
+                    chosen.put(key, lib);
+                }
+            }
+        }
+
         for (Library lib : info.libraries()) {
             if (!lib.isAllowed()) continue;
             if (!modern && isNativeLibrary(lib)) continue;
+
+            if (modern) {
+                String key = libraryKey(lib);
+                if (key != null) {
+                    Library winner = chosen.get(key);
+                    if (winner != null && winner != lib
+                            && !Objects.equals(winner.version(), lib.version())) {
+                        continue;   // 被更高版本的同一坐标取代
+                    }
+                }
+            }
 
             Path p = resolveLibraryPath(lib, libsDir);
             if (p != null && Files.isRegularFile(p)) {
@@ -302,6 +333,33 @@ public class LaunchInstance {
             Log.warn("Client jar not found: {}", clientJar);
         }
         return new ArrayList<>(cp);
+    }
+
+    /** 去重用的坐标键：{@code group:artifact[:classifier]}（不含版本）。 */
+    private static String libraryKey(Library lib) {
+        if (lib.groupId() == null || lib.artifactId() == null) return null;
+        String classifier = (lib.classifier() == null || lib.classifier().isBlank())
+                ? "" : ":" + lib.classifier();
+        return lib.groupId() + ":" + lib.artifactId() + classifier;
+    }
+
+    /** 按点分段比较版本号（{@code 9.10.1 > 9.6}）；非数字段按字符串比较。 */
+    private static int compareVersions(String a, String b) {
+        String[] pa = a.split("[.\\-+]");
+        String[] pb = b.split("[.\\-+]");
+        int n = Math.max(pa.length, pb.length);
+        for (int i = 0; i < n; i++) {
+            String va = i < pa.length ? pa[i] : "0";
+            String vb = i < pb.length ? pb[i] : "0";
+            int c;
+            if (va.matches("\\d+") && vb.matches("\\d+")) {
+                c = Integer.compare(Integer.parseInt(va), Integer.parseInt(vb));
+            } else {
+                c = va.compareTo(vb);
+            }
+            if (c != 0) return c;
+        }
+        return 0;
     }
 
     private static boolean isNativeLibrary(Library lib) {
