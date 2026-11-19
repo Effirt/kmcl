@@ -24,7 +24,7 @@ public class MicrosoftAuthManager {
         try {
             JavaAuthManager authManager = JavaAuthManager.create(httpClient)
                     .login(
-                            (client, config, consumer) -> new DeviceCodeMsaAuthService(client, config, consumer, 5 * 60_000),
+                            (client, config, consumer) -> new DeviceCodeMsaAuthService(client, config, consumer, 15 * 60_000),
                             (Consumer<MsaDeviceCode>) deviceCode -> Log.info(deviceCode.getDirectVerificationUri())
                     );
 

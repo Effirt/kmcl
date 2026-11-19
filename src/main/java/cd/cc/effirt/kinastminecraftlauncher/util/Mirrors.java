@@ -19,7 +19,9 @@ public class Mirrors {
             new String[]{"https://maven.minecraftforge.net/", BMCLAPI_MAVEN},
             new String[]{"http://maven.minecraftforge.net/", BMCLAPI_MAVEN},
             new String[]{"https://libraries.minecraft.net/", "https://bmclapi2.bangbang93.com/libraries/"},
-            new String[]{"https://piston-data.mojang.com/", "https://bmclapi2.bangbang93.com/"},
+            // piston-data 的 v1/objects 需要 /assets 前缀才对应 BMCLAPI 的静态资源目录，
+            // 直接换域名会得到 bmclapi…/v1/objects/...（404）。
+            new String[]{"https://piston-data.mojang.com/", "https://bmclapi2.bangbang93.com/assets/"},
             new String[]{"https://resources.download.minecraft.net/", "https://bmclapi2.bangbang93.com/assets/"}
     );
 

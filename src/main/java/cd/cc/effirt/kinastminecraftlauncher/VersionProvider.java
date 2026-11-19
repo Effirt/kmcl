@@ -11,6 +11,7 @@ import picocli.CommandLine;
 public class VersionProvider implements CommandLine.IVersionProvider {
     private static final String VERSION_RESOURCE = "/kmcl.properties";
     private static final String JAVA_RUNTIME_NAME = System.getProperty("java.runtime.name");
+    private static final String JAVA_VENDOR = System.getProperty("java.vendor");
     private static final String JAVA_RUNTIME_VERSION = System.getProperty("java.runtime.version");
     private static final String OS_ARCH = System.getProperty("os.arch");
     private static final String OS_NAME = System.getProperty("os.name");
@@ -31,7 +32,7 @@ public class VersionProvider implements CommandLine.IVersionProvider {
     @Override
     public String[] getVersion() {
         return new String[]{"Kinast Minecraft Launcher " + doLoadVersion(),
-                JAVA_RUNTIME_NAME + " " + JAVA_RUNTIME_VERSION + ", OS " + OS_NAME + " " + OS_ARCH,
+                JAVA_RUNTIME_NAME + " " + JAVA_RUNTIME_VERSION + " (" + JAVA_VENDOR + "), OS " + OS_NAME + " " + OS_ARCH,
                 "Copyright " + Year.now() + " Effirt - License MIT"};
     }
 

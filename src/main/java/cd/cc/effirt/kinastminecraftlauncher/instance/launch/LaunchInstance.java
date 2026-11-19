@@ -6,7 +6,6 @@ import cd.cc.effirt.kinastminecraftlauncher.auth.Account;
 import cd.cc.effirt.kinastminecraftlauncher.auth.AccountStorage;
 import cd.cc.effirt.kinastminecraftlauncher.auth.AccountTypeEnum;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionDownloader;
-import cd.cc.effirt.kinastminecraftlauncher.download.VersionInstaller;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionJSONParser;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionJSONParser.Argument;
 import cd.cc.effirt.kinastminecraftlauncher.download.VersionJSONParser.Library;
@@ -32,9 +31,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.regex.Pattern;
 
-
 public class LaunchInstance {
-    private static final Path DEFAULT_MC_ROOT = KMCLPath.getKmclPath();
     private static final Pattern JWT_RA_PATTERN = Pattern.compile("eyJ[A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+){1,4}");
     private static final String LOG4J_RESOURCE = "/kmcl-log4j2.xml";
     private static final String LOG4J_FILENAME = "kmcl-client.xml";
@@ -60,14 +57,16 @@ public class LaunchInstance {
         }
 
         // 2. 实例目录 & 配置
-        Path gameDir = VersionInstaller.instanceGameDir(instanceName);
+        Path gameDir = KMCLPath.getKmclPath().resolve("instances").resolve(instanceName);
         Files.createDirectories(gameDir);
-        InstanceConfig.load(gameDir);
+        InstanceConfig.load(instanceName);
         String java = InstanceConfig.getJava();
         String arguments = InstanceConfig.getArguments();
         String jvmArguments = InstanceConfig.getJvmArguments();
         String maxMemory = InstanceConfig.getMaxMemory();
         String minMemory = InstanceConfig.getMinMemory();
+        // 是否采用 version JSON 里的默认参数（kmcl.properties: defaultJvmArguments）
+        boolean defaultJvmArguments = InstanceConfig.getDefaultJvmArguments();
 
         // 3. 变量表 & classpath
         Map<String, String> vars = buildVars(instanceName, gameDir, info, acc);
@@ -89,20 +88,34 @@ public class LaunchInstance {
 
         // 4.1 JVM 参数
         if (modern) {
-            for (Argument a : info.arguments().defaultUserJvm()) {
-                if (!a.passes()) continue;
-                for (String raw : argValues(a)) {
-                    if (userXmx && raw.startsWith("-Xmx")) continue;
-                    if (userXms && raw.startsWith("-Xms")) continue;
-                    if (raw.startsWith("-Djava.library.path=")) continue;
-                    cmd.add(substitute(raw, vars));
+            if (defaultJvmArguments) {
+                for (Argument a : info.arguments().defaultUserJvm()) {
+                    if (!a.passes()) continue;
+                    for (String raw : argValues(a)) {
+                        if (userXmx && raw.startsWith("-Xmx")) continue;
+                        if (userXms && raw.startsWith("-Xms")) continue;
+                        if (raw.startsWith("-Djava.library.path=")) continue;
+                        cmd.add(substitute(raw, vars));
+                    }
                 }
-            }
-            for (Argument a : info.arguments().jvm()) {
-                if (!a.passes()) continue;
-                for (String raw : argValues(a)) {
-                    if (raw.startsWith("-Djava.library.path=")) continue;
-                    cmd.add(fixIgnoreList(substitute(raw, vars), mcVersion));
+                for (Argument a : info.arguments().jvm()) {
+                    if (!a.passes()) continue;
+                    for (String raw : argValues(a)) {
+                        if (raw.startsWith("-Djava.library.path=")) continue;
+                        cmd.add(fixIgnoreList(substitute(raw, vars), mcVersion));
+                    }
+                }
+            } else {
+                for (Argument a : info.arguments().jvm()) {
+                    if (!a.passes()) continue;
+                    for (String raw : argValues(a)) {
+                        if (raw.startsWith("-Djava.library.path=")) continue;
+                        String value = substitute(raw, vars);
+                        if (isJvmTuningFlag(value)) {
+                            continue;
+                        }
+                        cmd.add(fixIgnoreList(value, mcVersion));
+                    }
                 }
             }
         } else {
@@ -126,6 +139,10 @@ public class LaunchInstance {
             }
         }
 
+        // 关闭默认参数时，JSON 不再提供 -cp / -Djava.library.path，
+        // 这两个属于“能启动”的必需品，启动器自己补上（可被用户 jvmArguments 覆盖）
+        if (!defaultJvmArguments) ensureEssentialJvmArgs(cmd, vars);
+
         cmd.add(info.mainClass());
 
         if (arguments != null && !arguments.isEmpty()) appendArgs(cmd, arguments);
@@ -145,7 +162,7 @@ public class LaunchInstance {
         }
 
         // 5. 启动
-        Log.info("Launching '{}' (Minecraft {}, {})...",
+        Log.info("Launching instance '{}' (Minecraft {}, {})...",
                 instanceName, mcVersion, loaderLabel(instInfo));
 
         ProcessBuilder pb = new ProcessBuilder(cmd);
@@ -168,6 +185,41 @@ public class LaunchInstance {
     }
 
     // ==================== helpers ====================
+
+    /**
+     * JVM 调优参数（{@code -Xmx} / {@code -Xms} / {@code -Xss} / {@code -XX:...} /
+     * {@code -XstartOnFirstThread}）。这类参数在 {@code defaultJvmArguments=false} 时
+     * 交给实例配置的 {@code jvmArguments} 决定。
+     */
+    private static boolean isJvmTuningFlag(String arg) {
+        return arg != null && arg.startsWith("-X");
+    }
+
+    /**
+     * 补齐启动必需的 JVM 参数：{@code -cp} 与 {@code -Djava.library.path}。
+     *
+     * <p>仅在 {@code defaultJvmArguments=false} 时调用。用户自己通过
+     * {@code jvmArguments} 写出了这两个参数时不再重复添加。</p>
+     */
+    private static void ensureEssentialJvmArgs(List<String> cmd, Map<String, String> vars) {
+        boolean hasClasspath = false;
+        boolean hasLibraryPath = false;
+        for (String s : cmd) {
+            if (s.equals("-cp") || s.equals("-classpath") || s.startsWith("-Djava.class.path=")) {
+                hasClasspath = true;
+            } else if (s.startsWith("-Djava.library.path=")) {
+                hasLibraryPath = true;
+            }
+        }
+        String classpath = vars.get("classpath");
+        if (!hasClasspath && classpath != null && !classpath.isBlank()) {
+            cmd.add("-cp");
+            cmd.add(classpath);
+        }
+        if (!hasLibraryPath) {
+            cmd.add("-Djava.library.path=" + vars.get("natives_directory"));
+        }
+    }
 
     /**
      * 读取实例 version json；若它仍然 {@code inheritsFrom} 原版（旧版 Launcher 写出的
@@ -235,12 +287,12 @@ public class LaunchInstance {
             v.put("auth_uuid", uuid);
             v.put("auth_access_token", accessToken);
             v.put("auth_session", "token:" + accessToken + ":" + uuid);
-            String xuidVal = "0";
+            String xuidVal = "kmcl";
             try {
                 String x = mgr.getXboxUserProfile().getUpToDate().getId();
                 if (x != null && !x.isBlank()) xuidVal = x;
             } catch (Exception e) {
-                Log.warn("Failed to obtain XUID, falling back to 0: {}", e.getMessage());
+                Log.warn("Failed to obtain XUID: {}", e.getMessage());
             }
             v.put("auth_xuid", xuidVal);
             v.put("user_type", "msa");
@@ -270,7 +322,7 @@ public class LaunchInstance {
         v.put("natives_directory", natives.toString());
         v.put("launcher_name", "kmcl");
         v.put("launcher_version", VersionProvider.getVer());
-        v.put("library_directory", DEFAULT_MC_ROOT.resolve("libraries").toString());
+        v.put("library_directory", KMCLPath.getKmclPath().resolve("libraries").toString());
         v.put("classpath_separator", File.pathSeparator);
         v.put("clientid", "kmcl");
         return v;
@@ -279,7 +331,7 @@ public class LaunchInstance {
     private static List<String> buildClasspath(String instanceName, String mcVersion,
                                                VersionInfo info, InstanceInfoRecord instInfo) {
         Set<String> cp = new LinkedHashSet<>();
-        Path libsDir = DEFAULT_MC_ROOT.resolve("libraries");
+        Path libsDir = KMCLPath.getKmclPath().resolve("libraries");
         boolean modern = info.arguments() != null;
 
         // 同一 group:artifact[:classifier] 在 classpath 上只能有一个版本。

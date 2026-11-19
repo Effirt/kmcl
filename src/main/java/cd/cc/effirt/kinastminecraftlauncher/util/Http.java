@@ -95,9 +95,11 @@ public class Http {
             if (pb != null) {
                 if (contentLength > 0) {
                     pb.setSpinner(false);
+                    pb.setProgressBar(true);
                     pb.setTodo(contentLength);
                 } else {
                     pb.setSpinner(true);
+                    pb.setProgressBar(false);
                 }
             }
 
@@ -169,9 +171,11 @@ public class Http {
             if (pb != null) {
                 if (contentLength > 0) {
                     pb.setSpinner(false);
+                    pb.setProgressBar(true);
                     pb.setTodo(contentLength);
                 } else {
                     pb.setSpinner(true);
+                    pb.setProgressBar(false);
                 }
             }
 

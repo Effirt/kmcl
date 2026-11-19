@@ -182,8 +182,4 @@ public class VersionInstaller {
     public static void installAssets(Path versionJson, int maxAttempts) throws IOException {
         AssetInstaller.install(VersionJSONParser.parse(versionJson), maxAttempts);
     }
-
-    public static Path instanceGameDir(String name) {
-        return KMCLPath.getKmclPath().resolve("instances").resolve(name);
-    }
 }

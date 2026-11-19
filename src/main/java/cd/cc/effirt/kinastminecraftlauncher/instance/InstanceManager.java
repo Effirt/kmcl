@@ -1,7 +1,6 @@
 package cd.cc.effirt.kinastminecraftlauncher.instance;
 
 import cd.cc.effirt.kinastminecraftlauncher.KMCLPath;
-import cd.cc.effirt.kinastminecraftlauncher.download.VersionInstaller;
 import cd.cc.effirt.kinastminecraftlauncher.util.FilesUtil;
 import cd.cc.effirt.auroralib.Log;
 import com.google.gson.JsonObject;
@@ -32,10 +31,10 @@ public class InstanceManager {
             throw new IOException("Instance already exists: " + newName);
         }
 
-        Path oldVersionDir = versionDir(oldName);
-        Path newVersionDir = versionDir(newName);
-        Path oldGameDir = VersionInstaller.instanceGameDir(oldName);
-        Path newGameDir = VersionInstaller.instanceGameDir(newName);
+        Path oldVersionDir = KMCLPath.getKmclPath().resolve("versions").resolve(oldName);
+        Path newVersionDir = KMCLPath.getKmclPath().resolve("versions").resolve(newName);
+        Path oldGameDir = KMCLPath.getKmclPath().resolve("instances").resolve(oldName);
+        Path newGameDir = KMCLPath.getKmclPath().resolve("instances").resolve(newName);
 
         if (Files.exists(newVersionDir) || Files.exists(newGameDir)) {
             throw new IOException("Target directory already exists: " + newName);
@@ -68,22 +67,18 @@ public class InstanceManager {
         Log.info("Successfully rename '{}' to '{}'...", oldName, newName);
     }
 
-    private static Path versionDir(String name) {
-        return KMCLPath.getKmclPath().resolve("versions").resolve(name);
-    }
-
     public static void delete(String name, boolean deleteData) throws IOException {
         Log.info("Deleting '{}'...", name);
         Map<String, InstanceInfoRecord> all = InstanceRegistry.loadAll();
         if (!all.containsKey(name)) throw new IOException("Instance not found: " + name);
 
-        Path versionDir = versionDir(name);
+        Path versionDir = KMCLPath.getKmclPath().resolve("versions").resolve(name);
         if (Files.exists(versionDir)) {
             FilesUtil.deleteRecursively(versionDir);
         }
 
         if (deleteData) {
-            Path gameDir = VersionInstaller.instanceGameDir(name);
+            Path gameDir = KMCLPath.getKmclPath().resolve("instances").resolve(name);
             if (Files.exists(gameDir)) {
                 FilesUtil.deleteRecursively(gameDir);
             }

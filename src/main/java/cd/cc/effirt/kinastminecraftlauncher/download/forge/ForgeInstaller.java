@@ -141,7 +141,6 @@ public class ForgeInstaller {
             Files.createDirectories(cached.getParent());
             try (ProgressBar pb = new ProgressBar()) {
                 pb.setCustomText("forge-promotions.json");
-                pb.setProgressBar(false);
                 pb.start();
                 Http.getDownload(FORGE_PROMOS, cached, pb);
             }
@@ -339,14 +338,37 @@ public class ForgeInstaller {
             return;
         }
         Files.createDirectories(dest.getParent());
-        String url = client.get("url").getAsString()
-                .replace(PISTON_DATA, BMCLAPI_ASSETS)
-                .replace(MOJANG_LIBRARIES, BMCLAPI_LIBRARIES);
+        // client.jar 走 Mojang 的 piston-data 地址，镜像并不完整（BMCLAPI 对
+        // piston-data 的 v1/objects 路径会返回 404），因此这里<b>先官方、失败再试镜像</b>，
+        // 而不是一律改写成镜像地址。
+        String official = client.get("url").getAsString();
+        List<String> candidates = new ArrayList<>(Mirrors.candidates(official));
+        if (candidates.size() == 1) {
+            // 官方地址不在 Mirrors 的映射表里（piston-data），手动追加一个镜像候选
+            String mirrored = official
+                    .replace(PISTON_DATA, BMCLAPI_ASSETS)
+                    .replace(MOJANG_LIBRARIES, BMCLAPI_LIBRARIES);
+            if (!mirrored.equals(official)) candidates.add(mirrored);
+        }
+
         Log.info("Downloading vanilla client jar for Forge...");
         try (ProgressBar pb = new ProgressBar()) {
             pb.setCustomText(mcVersion + ".jar");
             pb.start();
-            Http.getDownload(url, dest, pb);
+            IOException last = null;
+            for (String url : candidates) {
+                try {
+                    Http.getDownload(url, dest, pb);
+                    if (Files.isRegularFile(dest) && Files.size(dest) > 1024) return;
+                    last = new IOException("Unexpectedly small client jar: " + url);
+                    Files.deleteIfExists(dest);
+                } catch (IOException e) {
+                    last = e;
+                    Files.deleteIfExists(dest);
+                    Log.warn("Failed: {} ({})", url, e.getMessage());
+                }
+            }
+            throw new IOException("Failed to download vanilla client jar for " + mcVersion, last);
         }
     }
 

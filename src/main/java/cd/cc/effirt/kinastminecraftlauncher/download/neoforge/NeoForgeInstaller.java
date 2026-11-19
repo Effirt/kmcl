@@ -156,8 +156,6 @@ public class NeoForgeInstaller {
         // 先官方，再 BMCLAPI 镜像
         for (String url : new String[]{OFFICIAL_META, BMCLAPI_META}) {
             try (ProgressBar pb = new ProgressBar()) {
-                pb.setProgressBar(false);
-                pb.setSpinner(true);
                 pb.setCustomText("maven-metadata.xml");
                 pb.start();
                 List<String> all = XmlUtil.readVersionTags(Http.get(url, pb));

@@ -4,6 +4,7 @@ import cd.cc.effirt.kinastminecraftlauncher.auth.Account;
 import cd.cc.effirt.kinastminecraftlauncher.auth.AccountStorage;
 import cd.cc.effirt.kinastminecraftlauncher.command.AuthCommand;
 import cd.cc.effirt.kinastminecraftlauncher.command.InstanceCommand;
+import cd.cc.effirt.kinastminecraftlauncher.command.NoteCommand;
 import cd.cc.effirt.kinastminecraftlauncher.command.VersionCommand;
 import cd.cc.effirt.kinastminecraftlauncher.instance.launch.LaunchInstance;
 import cd.cc.effirt.auroralib.Log;
@@ -21,7 +22,8 @@ import static cd.cc.effirt.kinastminecraftlauncher.ExitCode.*;
         subcommands = {
                 InstanceCommand.class,
                 AuthCommand.class,
-                VersionCommand.class
+                VersionCommand.class,
+                NoteCommand.class
         },
         versionProvider = VersionProvider.class
 )

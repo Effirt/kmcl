@@ -70,8 +70,8 @@ public class VersionManifest {
     }
 
     private static String fetchRaw() {
+        Log.info("Getting manifest...");
         try (ProgressBar pb = new ProgressBar()) {
-            Log.info("Getting manifest...");
             pb.setCustomText("version_manifest.json");
             pb.start();
             return Http.get(MANIFEST_URL, pb);
