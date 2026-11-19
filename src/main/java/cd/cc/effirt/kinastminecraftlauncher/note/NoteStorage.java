@@ -15,27 +15,23 @@ public class NoteStorage {
 
     private static final String EXTENSION = ".txt";
 
-    public static Path noteFile(String title) {
-        return KMCLPath.getKmclPath().resolve("notes").resolve(title + EXTENSION);
-    }
-
     public static boolean exists(String title) {
-        return Files.isRegularFile(noteFile(title));
+        return Files.isRegularFile(KMCLPath.getKmclPath().resolve("notes").resolve(title + EXTENSION));
     }
 
     public static String read(String title) throws IOException {
-        return Files.readString(noteFile(title), StandardCharsets.UTF_8);
+        return Files.readString(KMCLPath.getKmclPath().resolve("notes").resolve(title + EXTENSION), StandardCharsets.UTF_8);
     }
 
     public static void write(String title, String content) throws IOException {
-        Path file = noteFile(title);
+        Path file = KMCLPath.getKmclPath().resolve("notes").resolve(title + EXTENSION);
         Files.createDirectories(file.getParent());
         Files.writeString(file, content, StandardCharsets.UTF_8);
     }
 
     /** @return 是否真的删除了文件 */
     public static boolean delete(String title) throws IOException {
-        return Files.deleteIfExists(noteFile(title));
+        return Files.deleteIfExists(KMCLPath.getKmclPath().resolve("notes").resolve(title + EXTENSION));
     }
 
     /** 所有笔记标题（按名称排序，不含扩展名）。 */
