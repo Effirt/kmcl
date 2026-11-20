@@ -55,7 +55,8 @@ public class NeoForgeInstaller {
                 ? resolveLatest(mcVersion)
                 : requested.trim();
         if (loader == null) {
-            throw new IOException("No NeoForge versions found for Minecraft " + mcVersion);
+            throw new IOException("No NeoForge versions found for Minecraft " + mcVersion
+                    + " (checked prefix " + expectedPrefix(mcVersion) + ")");
         }
         Log.info("NeoForge Loader version: {}", loader);
 
@@ -113,23 +114,53 @@ public class NeoForgeInstaller {
     }
 
     /**
-     * NeoForge 版本号与 MC 版本的对应关系：
-     * {@code 1.20.4} → {@code 20.4.x}；{@code 1.21} → {@code 21.0.x}；{@code 1.20.1} 不存在。
+     * NeoForge 版本号与 MC 版本的对应关系。
+     *
+     * <ul>
+     *   <li>旧版本号方案（1.x）：{@code 1.20.4} → {@code 20.4.x}；
+     *       {@code 1.21} → {@code 21.0.x}；{@code 1.21.8} → {@code 21.8.x}</li>
+     *   <li>新版本号方案（26.x）：{@code 26.2} → {@code 26.2.0.x}；
+     *       {@code 26.1.2} → {@code 26.1.2.x}；{@code 26.3} → {@code 26.3.0.x}</li>
+     * </ul>
+     *
+     * <p>NeoForge 的版本号 = MC 版本的“数字前缀” + 构建号；前缀必须逐段相等，
+     * 因此 {@code 26.1} 不会误匹配到 {@code 26.1.2.x}，{@code 1.21} 也不会匹配 {@code 21.1.x}。</p>
      */
     static boolean matches(String neoVersion, String mcVersion) {
+        List<String> expected = expectedPrefix(mcVersion);
+        if (expected == null || expected.isEmpty()) return false;
+
         List<String> parts = numericPrefix(neoVersion);
-        if (parts.size() < 2) return false;
-        String expected = mcMinor(mcVersion);
-        return (parts.get(0) + "." + parts.get(1)).equals(expected);
+        // 至少要比前缀多出一段构建号
+        if (parts.size() < expected.size() + 1) return false;
+        for (int i = 0; i < expected.size(); i++) {
+            if (!parts.get(i).equals(expected.get(i))) return false;
+        }
+        return true;
     }
 
-    private static String mcMinor(String mcVersion) {
-        if (!mcVersion.startsWith("1.")) return null;
-        String[] p = mcVersion.substring(2).split("\\.");
-        if (p.length == 0 || p[0].isBlank()) return null;
-        String minor = Integer.toString(Integer.parseInt(p[0].replaceAll("\\D", "0")));
-        String patch = p.length > 1 ? p[1].replaceAll("\\D", "") : "0";
-        return minor + "." + (patch.isEmpty() ? "0" : patch);
+    /**
+     * MC 版本 → NeoForge 版本号的数字前缀。
+     *
+     * @return 无法解析（例如快照/无效版本）时返回 {@code null}
+     */
+    static List<String> expectedPrefix(String mcVersion) {
+        if (mcVersion == null || mcVersion.isBlank()) return null;
+        String v = mcVersion.trim();
+
+        if (!v.startsWith("1.")) {
+            // 新方案：26.1 / 26.2 / 26.1.2 ...，缺 patch 时补 0（26.2 → 26.2.0）
+            List<String> seg = numericPrefix(v);
+            if (seg.size() < 2) return null;
+            while (seg.size() < 3) seg.add("0");
+            return seg;
+        }
+
+        // 旧方案：1.20.4 → 20.4；1.21 → 21.0
+        List<String> seg = numericPrefix(v.substring(2));
+        if (seg.isEmpty()) return null;
+        while (seg.size() < 2) seg.add("0");
+        return seg;
     }
 
     private static List<String> numericPrefix(String v) {
@@ -161,9 +192,10 @@ public class NeoForgeInstaller {
         return List.of();
     }
 
+    /** 自然升序：数字段逐段比较，数字相同时正式版大于预发布版。 */
     private static int compareVersions(String a, String b) {
-        List<String> pa = numericPrefix(b);
-        List<String> pb = numericPrefix(a);
+        List<String> pa = numericPrefix(a);
+        List<String> pb = numericPrefix(b);
         int n = Math.max(pa.size(), pb.size());
         for (int i = 0; i < n; i++) {
             int va = i < pa.size() ? Integer.parseInt(pa.get(i)) : 0;
