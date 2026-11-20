@@ -57,8 +57,7 @@ public class ForgeInstaller {
     private static final String BMCLAPI_FORGE_MAVEN = BMCLAPI_MAVEN + "net/minecraftforge/forge/";
     private static final String FORGE_META = FORGE_MAVEN + "maven-metadata.xml";
     private static final String BMCLAPI_FORGE_META = BMCLAPI_FORGE_MAVEN + "maven-metadata.xml";
-    private static final String FORGE_PROMOS =
-            "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json";
+    private static final String FORGE_PROMOS = "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json";
 
     // ==================== 入口 ====================
 
@@ -163,6 +162,7 @@ public class ForgeInstaller {
         for (String meta : new String[]{FORGE_META, BMCLAPI_FORGE_META}) {
             try {
                 List<String> out = new ArrayList<>();
+                Log.info("Getting Forge loader list...");
                 for (String tag : XmlUtil.readVersionTags(Http.get(meta))) {
                     String prefix = mcVersion + "-";
                     if (tag.startsWith(prefix)) {
@@ -261,6 +261,7 @@ public class ForgeInstaller {
         Path libsDir = KMCLPath.getKmclPath().resolve("libraries");
         String installerName = installer.getFileName().toString();
         int fetched = 0;
+        Log.info("Downloading libraries...");
         for (String coord : wanted) {
             if (isGenerated(coord)) continue;
             Path dest = libsDir.resolve(mavenPath(coord));
@@ -391,12 +392,12 @@ public class ForgeInstaller {
         }
 
         Path java = JavaFinder.findAny();
+        Log.info("Running Forge installer with '{}'...", java);
         try (ProgressBar prb = new ProgressBar()) {
             prb.setSpinner(true);
             prb.setProgressBar(false);
             prb.setCustomText("Running Forge installer...");
             prb.start();
-            Log.info("Running Forge installer with '{}'...", java);
 
             List<String> cmd = new ArrayList<>();
             cmd.add(java.toAbsolutePath().toString());

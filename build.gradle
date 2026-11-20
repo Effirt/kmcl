@@ -80,7 +80,7 @@ processResources {
 graalvmNative {
 	binaries {
 		main {
-			imageName = "kmcl"
+			imageName = "${project.mod_name}"
 			mainClass = "${project.group}.${project.mod_package}.Main"
 			classpath(tasks.named("shadowJar"))
 			buildArgs.addAll("--color=always","--no-fallback","--enable-https","--enable-http")

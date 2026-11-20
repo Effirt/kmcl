@@ -35,7 +35,7 @@ java -jar build/libs/kmcl.jar
 ```
 
 ```
-java -jar build/native/nativeCompile/kmcl
+./build/native/nativeCompile/kmcl
 ```
 
 添加一个读我。 帮助对这个知识库感兴趣的人了解你的项目。

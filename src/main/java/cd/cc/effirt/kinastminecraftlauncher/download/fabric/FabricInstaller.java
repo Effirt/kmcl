@@ -61,6 +61,7 @@ public class FabricInstaller {
     // ---------- Loader 解析 ----------
 
     private static String resolveLatestStableLoader(String mcVersion) throws IOException {
+        Log.info("Getting Fabric loader list...");
         JsonArray loaders = parseArray(Http.get(META + mcVersion), "fabric loader list " + mcVersion);
 
         for (JsonElement el : loaders) {

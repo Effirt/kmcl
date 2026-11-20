@@ -112,16 +112,6 @@ public class NeoForgeInstaller {
                 || v.contains("-pre") || v.contains("-rc");
     }
 
-    /** 列出某 MC 版本可用的 NeoForge 版本（由新到旧）。 */
-    public static List<String> listLoaders(String mcVersion) {
-        List<String> matched = new ArrayList<>();
-        for (String v : fetchVersions()) {
-            if (matches(v, mcVersion)) matched.add(v);
-        }
-        matched.sort((a, b) -> compareVersions(b, a));
-        return matched;
-    }
-
     /**
      * NeoForge 版本号与 MC 版本的对应关系：
      * {@code 1.20.4} → {@code 20.4.x}；{@code 1.21} → {@code 21.0.x}；{@code 1.20.1} 不存在。
@@ -153,6 +143,7 @@ public class NeoForgeInstaller {
     }
 
     private static List<String> fetchVersions() {
+        Log.info("Getting NeoForge loader list...");
         // 先官方，再 BMCLAPI 镜像
         for (String url : new String[]{OFFICIAL_META, BMCLAPI_META}) {
             try (ProgressBar pb = new ProgressBar()) {
@@ -285,10 +276,11 @@ public class NeoForgeInstaller {
         }
 
         Path java = JavaFinder.findAny();
+        Log.info("Running NeoForge installer with '{}'...", java);
         try (ProgressBar prb = new ProgressBar()) {
-            Log.info("Running NeoForge installer with '{}'...", java);
             prb.setProgressBar(false);
             prb.setSpinner(true);
+            prb.setCustomText("Running NeoForge installer...");
             prb.start();
 
             List<String> cmd = new ArrayList<>();

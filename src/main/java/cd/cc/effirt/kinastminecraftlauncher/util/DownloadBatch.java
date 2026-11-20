@@ -25,9 +25,6 @@ public class DownloadBatch {
 
     public static void one(Task t, int maxAttempts, ProgressBar pb) throws IOException {
         Files.createDirectories(t.dest().getParent());
-
-        // 官方优先，失败后按 Mirrors.candidates 的顺序换下一个源（通常是 BMCLAPI 镜像）。
-        // 同一源内仍按 maxAttempts 重试。
         List<String> candidates = Mirrors.candidates(t.url());
         IOException last = null;
         for (int i = 0; i < candidates.size(); i++) {
