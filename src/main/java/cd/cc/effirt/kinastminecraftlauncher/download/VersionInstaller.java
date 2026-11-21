@@ -23,10 +23,46 @@ public class VersionInstaller {
     private static final Pattern MAVEN_COORDINATE =
             Pattern.compile("[\\w.\\-]+:[\\w.\\-]+:[\\w.\\-]+(:[\\w.\\-]+)?(@\\w+)?");
 
+    /** 老版本 Forge 缺失库的公开副本所在仓库（官方优先，失败自动回落镜像）。 */
+    private static final String MAVEN_CENTRAL = "https://repo1.maven.org/maven2/";
+    /** Mojang 的库仓库：launchwrapper、vecmath、lzma 等只在这里，不在 Maven Central。 */
+    private static final String LIBRARIES_MINECRAFT = "https://libraries.minecraft.net/";
+
     private static boolean hasMavenCoordinateOnly(VersionJSONParser.Library lib) {
         if (lib.downloads() != null) return false;
         String name = lib.name();
         return name != null && MAVEN_COORDINATE.matcher(name).matches();
+    }
+
+    /**
+     * 只有坐标的库的补充下载地址。
+     *
+     * <p>老版本 Forge（1.8.9 / 1.12.2 等）的 version json 里，部分库只写了坐标而没有
+     * {@code downloads}：{@code net.minecraft:launchwrapper}、{@code org.ow2.asm:asm-all}、
+     * {@code lzma:lzma}、{@code net.sf.jopt-simple}、{@code java3d:vecmath}、
+     * {@code net.sf.trove4j} 等。它们不在安装器里，缺失会直接导致
+     * {@code 找不到或无法加载主类 net.minecraft.launchwrapper.Launch}。</p>
+     *
+     * <ul>
+     *   <li>Mojang 自己的库（{@code net.minecraft:*}) 在 {@code libraries.minecraft.net}，
+     *       该仓库<b>不在</b> Maven Central，不能猜成 repo1；</li>
+     *   <li>其余开源库在 Maven Central；</li>
+     *   <li>{@code tv.twitch:*} 只在 Mojang CDN 且未公开，保持跳过。</li>
+     * </ul>
+     *
+     * @return 下载地址；无法确定时返回 {@code null}（保持“跳过”语义）
+     */
+    private static String coordinateOnlyUrl(VersionJSONParser.Library lib) {
+        String path = lib.mavenPath();
+        String group = lib.groupId();
+        if (path.isBlank() || group == null) return null;
+        return switch (group) {
+            case "tv.twitch" -> null;
+            case "net.minecraft" -> LIBRARIES_MINECRAFT + path;
+            // 已知只在 Mojang 库里的老库
+            case "java3d", "lzma", "net.sf.jopt-simple", "net.sf.trove4j" -> LIBRARIES_MINECRAFT + path;
+            default -> MAVEN_CENTRAL + path;
+        };
     }
 
     // ============ client.jar ============
@@ -142,6 +178,9 @@ public class VersionInstaller {
             } else if (hasMavenCoordinateOnly(lib)) {
                 // 已由安装器（Forge/NeoForge processors）放进 libraries/
                 path = lib.mavenPath();
+                // 装不进去的 loader 库（老版本 Forge 的 launchwrapper / asm-all / lzma /
+                // jopt-simple / vecmath / trove4j）在 Maven Central 上有公开副本，补一个回退地址
+                url = coordinateOnlyUrl(lib);
             } else {
                 Log.warn("Skip library without resolvable URL: {}", lib.name());
                 skipped++;

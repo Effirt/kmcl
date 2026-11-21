@@ -309,10 +309,19 @@ public class LaunchInstance {
 
         v.put("version_name", instanceName);
         v.put("version_type", info.type() == null ? "release" : info.type());
+        // 老格式（1.12 及更早 / 老版本 Forge）使用 ${game_directory} 而不是 ${gameDir}
         v.put("game_directory", gameDir.toString());
+        v.put("gameDir", gameDir.toString());
+        v.put("version", instanceName);
+        v.put("assets_index_name", info.assets() == null ? "legacy" : info.assets());
+        v.put("assets_index", v.get("assets_index_name"));
         v.put("assets_root", KMCLPath.getKmclPath().resolve("assets").toString());
         v.put("game_assets", KMCLPath.getKmclPath().resolve("assets").resolve("virtual/legacy").toString());
-        v.put("assets_index_name", info.assets() == null ? "legacy" : info.assets());
+        // 旧版启动器用的额外别名（老 Forge / 1.7 之前的 json 里有引用）
+        v.put("user_type", v.getOrDefault("user_type", "legacy"));
+        v.put("user_type_alt", v.get("user_type"));
+        v.put("user_properties", v.getOrDefault("user_properties", "{}"));
+        v.put("user_properties_map", v.get("user_properties"));
         // 新格式的 Forge / NeoForge 依赖库里的 natives（natives-*.jar），实例目录不一定有 natives/
         Path natives = KMCLPath.getKmclPath().resolve("versions").resolve(instanceName).resolve("natives");
         if (!Files.isDirectory(natives)) {

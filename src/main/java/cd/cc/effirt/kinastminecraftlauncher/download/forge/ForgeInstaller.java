@@ -16,6 +16,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,6 +25,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 /**
  * Forge 1.13+ 安装流程。
@@ -90,26 +93,41 @@ public class ForgeInstaller {
         // 而 installer 自身依赖的地址在可达网络上都能直连。
         Path runnable = downloadInstaller(mcVersion, loader);
 
+        JsonObject installProfile = InstallerRecords.readJsonFromZip(runnable, "install_profile.json");
+        JsonObject embedded = InstallerRecords.readInstallerVersionJson(runnable, installProfile);
+
+        // ===== 老式安装器（1.12 及更早）：没有 processors，也不需要跑安装器 =====
+        //
+        // 这类安装器是 SimpleInstaller，参数是 --installClient；但它只负责把 universal
+        // 写进版本目录，version json 就在 install_profile.json 的 install 字段里。
+        // 直接静态安装即可（equivalent 于官方安装器的产物）。
+        boolean modern = embedded != null
+                && InstallerRecords.readJsonFromZip(runnable, "version.json") != null;
+        if (!modern) {
+            Log.info("Legacy Forge installer (no processors), installing statically...");
+            JsonObject legacyJson = staticVersionJson(installProfile, embedded, mcVersion, loader);
+            // SimpleInstaller（1.8.9 等）把 universal jar 打包在安装器内部，
+            // 它的版本 json 只声明了 net.minecraftforge:forge 库而没有可访问的 URL，
+            // 这里把它释放到 libraries/ 下，避免启动时 404。
+            extractLegacyUniversal(runnable, installProfile, mcVersion, loader);
+            Path target = Loaders.writeInstanceJson(instanceName, mcVersion, legacyJson, Loaders.mojang());
+            saveInstallProfile(instanceName, mcVersion, installProfile);
+            Loaders.register(instanceName, mcVersion, "forge", loader);
+            Log.info("Forge {} mapped to instance '{}'", loader, instanceName);
+            return target;
+        }
+
         prepareProcessorsLibraries(runnable);
         ensureVanillaClient(mcVersion);
 
         boolean processed = runInstaller(runnable);
 
         JsonObject loaderJson;
-        JsonObject installProfile = InstallerRecords.readJsonFromZip(runnable, "install_profile.json");
-        // version.json 是安装器自带的 loader 版本 json，结构稳定
-        JsonObject embedded = InstallerRecords.readJsonFromZip(runnable, "version.json");
         if (!processed) {
             Log.warn("Forge installer did not complete; installing statically from install_profile");
             loaderJson = staticVersionJson(installProfile, embedded, mcVersion, loader);
-        } else if (embedded != null) {
-            loaderJson = embedded;
         } else {
-            Path installedDir = findInstalledDir(mcVersion, loader);
-            if (installedDir == null) {
-                throw new IOException("Forge installer produced no version json");
-            }
-            loaderJson = InstallerRecords.readJson(installJson(installedDir));
+            loaderJson = embedded;
         }
 
         Path target = Loaders.writeInstanceJson(instanceName, mcVersion, loaderJson, Loaders.mojang());
@@ -204,15 +222,49 @@ public class ForgeInstaller {
 
     // ==================== 安装器下载 ====================
 
+    /**
+     * Forge Maven 里的版本坐标。
+     *
+     * <p>1.8.9 / 1.9.x / 1.10.x / 1.11.x / 1.12.x 这些老版本的 Forge 目录名不是
+     * {@code <mc>-<loader>}，而是带 MC 后缀的 {@code <mc>-<loader>-<mc>}
+     * （例如 {@code 1.8.9-11.15.1.2318-1.8.9}）。用错坐标会得到 404。</p>
+     */
+    private static String versionPath(String mcVersion, String loader) {
+        return needsMcSuffix(mcVersion)
+                ? mcVersion + "-" + loader + "-" + mcVersion
+                : mcVersion + "-" + loader;
+    }
+
+    /**
+     * 该 MC 版本的 Forge 目录是否使用 {@code <mc>-<loader>-<mc>} 形式。
+     *
+     * <p>1.13+ 全部是 {@code <mc>-<loader>}；1.8 及更早的裸版本也是；
+     * 1.8.9 / 1.9.x / 1.10.x / 1.11.x / 1.12.x 带 MC 后缀。</p>
+     */
+    static boolean needsMcSuffix(String mcVersion) {
+        if (mcVersion == null || !mcVersion.startsWith("1.")) return false;
+        try {
+            String[] p = mcVersion.substring(2).split("\\.");
+            int minor = Integer.parseInt(p[0].replaceAll("\\D", "0"));
+            int patch = p.length > 1 ? Integer.parseInt(p[1].replaceAll("\\D", "0")) : 0;
+            if (minor < 8) return false;
+            if (minor == 8) return patch == 9;              // 1.8.9 带后缀，1.8 不带
+            return minor <= 12;                             // 1.9.x ~ 1.12.x
+        } catch (NumberFormatException _) {
+            return false;
+        }
+    }
+
     private static Path downloadInstaller(String mcVersion, String loader) throws IOException {
-        String fileName = "forge-" + mcVersion + "-" + loader + "-installer.jar";
+        String vpath = versionPath(mcVersion, loader);
+        String fileName = "forge-" + vpath + "-installer.jar";
         Path target = KMCLPath.getKmclPath().resolve("cache").resolve(fileName);
         if (Files.isRegularFile(target) && Files.size(target) > 64 * 1024) {
             Log.info("Using cached Forge installer '{}'", fileName);
             return target;
         }
 
-        String rel = mcVersion + "-" + loader + "/" + fileName;
+        String rel = vpath + "/" + fileName;
         String bmcl = BMCLAPI_FORGE_MAVEN + rel;
         String official = FORGE_MAVEN + rel;
         Log.info("Downloading Forge installer...");
@@ -443,44 +495,20 @@ public class ForgeInstaller {
 
     // ==================== 归位 ====================
 
-    private static Path findInstalledDir(String mcVersion, String loader) throws IOException {
-        String marker = "forge-" + mcVersion + "-" + loader;
-        Path versions = KMCLPath.getKmclPath().resolve("versions");
-        Path direct = versions.resolve(marker);
-        if (Files.isDirectory(direct) && findJson(direct) != null) return direct;
-        if (!Files.isDirectory(versions)) return null;
-        try (var s = Files.list(versions)) {
-            return s.filter(Files::isDirectory)
-                    .filter(p -> p.getFileName().toString().contains("forge"))
-                    .filter(p -> findJson(p) != null)
-                    .findFirst().orElse(null);
-        }
-    }
-
-    private static Path findJson(Path dir) {
-        String name = dir.getFileName().toString();
-        Path exact = dir.resolve(name + ".json");
-        if (Files.isRegularFile(exact)) return exact;
-        try (var s = Files.list(dir)) {
-            return s.filter(p -> p.getFileName().toString().endsWith(".json"))
-                    .findFirst().orElse(null);
-        } catch (IOException e) {
-            return null;
-        }
-    }
-
-    private static Path installJson(Path dir) throws IOException {
-        Path json = findJson(dir);
-        if (json == null) throw new IOException("No version json in " + dir);
-        return json;
-    }
-
-    /** 静态安装：从 {@code install_profile.json} + {@code version.json} 组出实例 json。 */
+    /**
+     * 静态安装：从安装器内嵌的版本 json（{@code version.json} 或老式
+     * {@code install_profile.install}）组出实例 json，并把 {@code install_profile.libraries} 合并进去。
+     *
+     * <p>老式（1.12 及更早）安装器的版本 json 没有 {@code jar} 字段，客户端 jar 就是
+     * {@code <mc>.jar}；{@code install_profile.install.filePath} 指向的 universal jar
+     * 也会作为库并入（地址为 {@code maven.minecraftforge.net}，走镜像回退）。</p>
+     */
     private static JsonObject staticVersionJson(JsonObject installProfile, JsonObject embedded,
                                                 String mcVersion, String loader)
             throws IOException {
         if (embedded == null) {
-            throw new IOException("Forge installer has no version.json; cannot install statically");
+            throw new IOException("Forge installer has no version json (neither version.json "
+                    + "nor install_profile.install); cannot install statically");
         }
         ProcessorRecords.InstallProfile profile = ProcessorRecords.profile(installProfile);
         if (profile.minecraft() != null && !profile.minecraft().equals(mcVersion)) {
@@ -490,14 +518,172 @@ public class ForgeInstaller {
         JsonObject out = embedded.deepCopy();
         out.remove("librariesFrom");
         if (!out.has("id")) out.addProperty("id", "forge-" + mcVersion + "-" + loader);
+
+        JsonArray arr = out.get("libraries") instanceof JsonArray a ? a : new JsonArray();
+
+        // 老式 install_profile 内嵌的 libraries（processor 相关，通常为空）
         if (installProfile != null && installProfile.get("libraries") instanceof JsonObject libs) {
-            JsonArray arr = out.get("libraries") instanceof JsonArray a ? a : new JsonArray();
             for (var e : libs.entrySet()) {
                 if (e.getValue() instanceof JsonObject o) arr.add(o);
             }
-            out.add("libraries", arr);
         }
+
+        // 老式安装器（SimpleInstaller）：安装器内部带着 universal jar，
+        // extractLegacyUniversal 已把它释放到 libraries/，这里把版本 json 里的
+        // forge 库坐标对齐到该文件（并用带 -<mc> 后缀的 Maven 坐标）。
+        if (installProfile != null && installProfile.get("install") instanceof JsonObject legacyInstall
+                && str(legacyInstall, "filePath") != null) {
+            normalizeLegacyForgeLibrary(arr, mcVersion, loader);
+            demoteClientJar(arr);
+
+            // 老式 Forge 的 universal jar 是 universal（混淆名），需要 launchwrapper 在
+            // 运行时把 net.minecraft.client.Minecraft 之类的类名重映射到混淆名。
+            // 版本 json 的 minecraftArguments 里本来就带了 FMLTweaker，但 mc 版本的
+            // arguments 在合并时可能被丢掉，这里兜底补上 tweak 参数（只补一次）。
+            String tweakClass = "net.minecraftforge.fml.common.launcher.FMLTweaker";
+            String mcArgs = str(out, "minecraftArguments");
+            if (mcArgs == null || mcArgs.isBlank()) {
+                mcArgs = DEFAULT_LEGACY_ARGUMENTS;
+            }
+            if (!mcArgs.contains("--tweakClass")) {
+                mcArgs = mcArgs + " --tweakClass " + tweakClass;
+            }
+            out.addProperty("minecraftArguments", mcArgs);
+        }
+
+        out.add("libraries", arr);
         return out;
+    }
+
+    /**
+     * 老式版本 json 若没有 {@code minecraftArguments}，用这套默认参数兜底
+     * （与官方安装器写入 {@code install_profile.versionInfo} 的内容一致）。
+     */
+    private static final String DEFAULT_LEGACY_ARGUMENTS =
+            "--username ${auth_player_name} --version ${version_name} "
+                    + "--gameDir ${game_directory} --assetsDir ${assets_root} "
+                    + "--assetIndex ${assets_index_name} --uuid ${auth_uuid} "
+                    + "--accessToken ${auth_access_token} --userProperties ${user_properties} "
+                    + "--userType ${user_type}";
+
+    /**
+     * 老式版本 json 自带 {@code downloads.client}，而 {@code Loaders.writeInstanceJson}
+     * 会把原版 json 的 {@code downloads}/{@code libraries} 按组合并进来。
+     * 合并会把原版 client.jar 对应的 {@code net.minecraft:client} 库推到最后，
+     * 那样 launchwrapper 会先加载原版混淆类而不是 universal 里的 FML 类。
+     * 这里把原版 client 库移到最前面（classpath 顺序：forge 库最先）。
+     */
+    private static void demoteClientJar(JsonArray arr) {
+        for (int i = 0; i < arr.size(); i++) {
+            JsonElement el = arr.get(i);
+            if (!(el instanceof JsonObject o)) continue;
+            String name = str(o, "name");
+            if (name != null && name.startsWith("net.minecraft:client:")) {
+                if (i == 0) return;
+                // gson 的 JsonArray 没有 add(index, element)
+                JsonArray reordered = new JsonArray();
+                reordered.add(o);
+                for (int k = 0; k < arr.size(); k++) {
+                    if (k != i) reordered.add(arr.get(k));
+                }
+                // 就地替换，保持调用方持有的引用有效
+                while (!arr.isEmpty()) arr.remove(0);
+                for (JsonElement e : reordered) arr.add(e);
+                return;
+            }
+        }
+    }
+
+    /** 把版本 json 里的 {@code net.minecraftforge:forge} 库指向释放出来的 universal jar。 */
+    private static void normalizeLegacyForgeLibrary(JsonArray arr, String mcVersion, String loader) {
+        String v = versionPath(mcVersion, loader);
+        String rel = "net/minecraftforge/forge/" + v + "/forge-" + v + "-universal.jar";
+        boolean found = false;
+        for (JsonElement el : arr) {
+            if (!(el instanceof JsonObject o)) continue;
+            String name = str(o, "name");
+            if (name == null || !name.startsWith("net.minecraftforge:forge:")) continue;
+            found = true;
+            o.addProperty("name", "net.minecraftforge:forge:" + v + ":universal");
+            JsonObject artifact = new JsonObject();
+            artifact.addProperty("path", rel);
+            artifact.addProperty("url", OFFICIAL_MAVEN + rel);
+            JsonObject downloads = new JsonObject();
+            downloads.add("artifact", artifact);
+            o.add("downloads", downloads);
+        }
+        if (!found) {
+            JsonObject lib = new JsonObject();
+            lib.addProperty("name", "net.minecraftforge:forge:" + v + ":universal");
+            JsonObject artifact = new JsonObject();
+            artifact.addProperty("path", rel);
+            artifact.addProperty("url", OFFICIAL_MAVEN + rel);
+            JsonObject downloads = new JsonObject();
+            downloads.add("artifact", artifact);
+            lib.add("downloads", downloads);
+            arr.add(lib);
+        }
+    }
+
+    /**
+     * SimpleInstaller（1.8.9 / 1.9.x / 1.10.x）把 universal jar 打包在安装器 jar 内部
+     * （条目名就是 {@code install.filePath}，例如
+     * {@code forge-1.8.9-11.15.1.2318-1.8.9-universal.jar}），
+     * 而它的版本 json 只声明了 {@code net.minecraftforge:forge:...} 库、没有下载 URL。
+     * 这里把该条目释放到 {@code libraries/net/minecraftforge/forge/<v>/} 下，
+     * 并同步版本 json 中的库坐标，保证启动时 classpath 能找到它。
+     */
+    private static void extractLegacyUniversal(Path installer, JsonObject installProfile,
+                                               String mcVersion, String loader) throws IOException {
+        if (installProfile == null
+                || !(installProfile.get("install") instanceof JsonObject installInstall)) {
+            return;
+        }
+        String filePath = str(installInstall, "filePath");
+        if (filePath == null || filePath.isBlank()) return;
+
+        String v = versionPath(mcVersion, loader);
+        String rel = "net/minecraftforge/forge/" + v + "/forge-" + v + "-universal.jar";
+        Path dest = KMCLPath.getKmclPath().resolve("libraries").resolve(rel);
+        if (Files.isRegularFile(dest) && Files.size(dest) > 1024) {
+            return;
+        }
+
+        // filePath 可能是裸文件名，也可能带目录；两种都尝试
+        String entryName = filePath.replace('\\', '/');
+        if (entryName.startsWith("/")) entryName = entryName.substring(1);
+        try (ZipFile zip = new ZipFile(installer.toFile())) {
+            ZipEntry entry = zip.getEntry(entryName);
+            if (entry == null) {
+                // 退一步：按文件名在 jar 里找
+                String fileName = entryName.substring(entryName.lastIndexOf('/') + 1);
+                var en = zip.entries();
+                while (en.hasMoreElements()) {
+                    ZipEntry candidate = en.nextElement();
+                    String n = candidate.getName();
+                    if (!candidate.isDirectory()
+                            && n.substring(n.lastIndexOf('/') + 1).equals(fileName)) {
+                        entry = candidate;
+                        break;
+                    }
+                }
+            }
+            if (entry == null) {
+                Log.warn("Universal jar '{}' not found inside Forge installer", filePath);
+                return;
+            }
+            Files.createDirectories(dest.getParent());
+            try (InputStream in = zip.getInputStream(entry)) {
+                Files.copy(in, dest, StandardCopyOption.REPLACE_EXISTING);
+            }
+        }
+        Log.info("Extracted Forge universal jar -> {}", rel);
+    }
+
+    /** 读取 JSON 字符串字段；缺失或 null 时返回 {@code null}。 */
+    private static String str(JsonObject o, String key) {
+        JsonElement e = o == null ? null : o.get(key);
+        return e == null || e.isJsonNull() ? null : e.getAsString();
     }
 
     private static void saveInstallProfile(String instanceName, String mcVersion,

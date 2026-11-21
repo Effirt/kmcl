@@ -548,6 +548,14 @@ public class VersionJSONParser {
             JsonElement merged = mergeField(key, childEl, parentEl);
             if (merged != null) out.add(key, merged);
         }
+        // minecraftArguments 属于 isDynamicKey，但 mergeField 只处理 arguments/libraries，
+        // 这里单独合并字符串字段，否则老版本 Forge 的 --tweakClass 会在合并时丢掉，
+        // 启动时只会加载原版 VanillaTweaker，报 ClassNotFoundException: net.minecraft.client.Minecraft。
+        if (!out.has("arguments")) {
+            JsonElement legacyArgs = child.get("minecraftArguments");
+            if (legacyArgs == null && parent != null) legacyArgs = parent.get("minecraftArguments");
+            if (legacyArgs != null) out.add("minecraftArguments", legacyArgs);
+        }
         if (out.has("arguments")) out.remove("minecraftArguments");
         return out;
     }
