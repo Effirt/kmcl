@@ -74,8 +74,23 @@ public class LaunchInstance {
         vars.put("classpath", String.join(File.pathSeparator, classpath));
 
         List<String> cmd = new ArrayList<>();
-        if (java != null && !java.isEmpty()) cmd.add(java);
-        else cmd.add(resolveJava(info).toString());
+        Path javaExe;
+        if (java != null && !java.isEmpty()) {
+            javaExe = Path.of(java);
+        } else {
+            javaExe = resolveJava(info);
+        }
+        cmd.add(javaExe.toString());
+
+        // Java 8 + UTF-8 控制台（chcp 65001）时，sun.stdout.encoding 是 "cp65001"，
+        // 而 Java 8 的 Charset 不认识这个别名。Minecraft 1.13~1.16 自带的 log4j 2.8
+        // 会拿它去 Charset.forName，直接抛 UnsupportedCharsetException: cp65001，
+        // 导致 Console appender 建不出来、刷一屏 ERROR。显式覆盖成 UTF-8 即可。
+        int javaMajor = majorVersion(javaExe);
+        if (javaMajor > 0 && javaMajor < 9) {
+            cmd.add("-Dsun.stdout.encoding=UTF-8");
+            cmd.add("-Dsun.stderr.encoding=UTF-8");
+        }
 
         boolean userXmx = maxMemory != null && !maxMemory.isEmpty();
         boolean userXms = minMemory != null && !minMemory.isEmpty();
@@ -88,6 +103,10 @@ public class LaunchInstance {
 
         // 4.1 JVM 参数
         if (modern) {
+            // 1.16 及更早用 LWJGL 3.2，natives 是解压出来的 dll，必须从 java.library.path 加载；
+            // 1.17+ 虽然能从 classpath 里的 natives-*.jar 直接取，但补上也无害。
+            // 版本 JSON 自带的 -Djava.library.path 会在下面被跳过，这里统一补一次。
+            cmd.add("-Djava.library.path=" + vars.get("natives_directory"));
             if (defaultJvmArguments) {
                 for (Argument a : info.arguments().defaultUserJvm()) {
                     if (!a.passes()) continue;
