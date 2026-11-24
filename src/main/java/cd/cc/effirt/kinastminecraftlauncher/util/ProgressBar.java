@@ -85,7 +85,7 @@ public class ProgressBar implements AutoCloseable {
             sb.append("  ");
         }
         if (progressBar) {
-            if (System.getProperty("stdout.encoding").equals("UTF-8")) {
+            if (System.getProperty("stdout.encoding").equals("UTF-8") || GetTerminalCodePage.get() == 65001) {
                 sb.append(String.format("%3d%% │", pct));
                 sb.append("█".repeat(filled));
                 sb.append("·".repeat(WIDTH - filled));

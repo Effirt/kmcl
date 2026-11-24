@@ -276,14 +276,14 @@
       ]
     },
     {
-  "type": "cd.cc.effirt.kinastminecraftlauncher.instance.InstanceInfoRecord",
-  "allDeclaredConstructors": true,
-  "allPublicConstructors": true,
-  "allDeclaredMethods": true,
-  "allPublicMethods": true,
-  "allDeclaredFields": true,
-  "unsafeAllocated": true
-},
+      "type": "cd.cc.effirt.kinastminecraftlauncher.instance.InstanceInfoRecord",
+      "allDeclaredConstructors": true,
+      "allPublicConstructors": true,
+      "allDeclaredMethods": true,
+      "allPublicMethods": true,
+      "allDeclaredFields": true,
+      "unsafeAllocated": true
+    },
     {
       "type": "com.google.gson.internal.bind.JavaTimeTypeAdapters",
       "methods": [
@@ -1023,5 +1023,13 @@
       "module": "java.base",
       "glob": "sun/text/resources/LineBreakIteratorData"
     }
-  ]
+  ],
+  "foreign": {
+    "downcalls": [
+      {
+        "returnType": "int",
+        "parameterTypes": []
+      }
+    ]
+  }
 }

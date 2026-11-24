@@ -62,7 +62,8 @@ shadowJar {
 	manifest {
 		attributes(
 			"Main-Class": "${project.group}.${project.mod_package}.Main",
-			"Implementation-Version": "${project.mod_version}"
+			"Implementation-Version": "${project.mod_version}",
+			"Enable-Native-Access": "ALL-UNNAMED"
 		)
 	}
 	exclude "META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA"
@@ -83,7 +84,7 @@ graalvmNative {
 			imageName = "${project.mod_name}"
 			mainClass = "${project.group}.${project.mod_package}.Main"
 			classpath(tasks.named("shadowJar"))
-			buildArgs.addAll("--color=always","--no-fallback","--enable-https","--enable-http")
+			buildArgs.addAll("--color=always", "--no-fallback", "--enable-https", "--enable-http", "--enable-native-access=ALL-UNNAMED")
 		}
 	}
 }
