@@ -85,11 +85,19 @@ public class ProgressBar implements AutoCloseable {
             sb.append("  ");
         }
         if (progressBar) {
-            sb.append(String.format("%3d%% ", pct));
-            sb.append("█".repeat(filled));
-            sb.append("-".repeat(WIDTH - filled));
+            if (System.getProperty("stdout.encoding").equals("UTF-8")) {
+                sb.append(String.format("%3d%% │", pct));
+                sb.append("█".repeat(filled));
+                sb.append("·".repeat(WIDTH - filled));
+                sb.append("│");
+            } else {
+                sb.append(String.format("%3d%% |", pct));
+                sb.append("#".repeat(filled));
+                sb.append(".".repeat(WIDTH - filled));
+                sb.append("|");
+            }
         } else {
-            sb.append(" ".repeat(5 + WIDTH));
+            sb.append(" ".repeat(7 + WIDTH));
         }
         if (customText != null && !customText.isEmpty()) {
             sb.append(" ").append(customText).append(" ".repeat(5));
