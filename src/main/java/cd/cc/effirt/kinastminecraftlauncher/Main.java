@@ -59,7 +59,7 @@ public class Main implements Callable<Integer> {
             Log.error(e.getMessage());
             return FAILED;
         } catch (IOException e) {
-            Log.error("Failed to launch '{}'", instanceName, e);
+            Log.error("Failed to launch instance '{}'", instanceName, e);
             return FAILED;
         }
     }

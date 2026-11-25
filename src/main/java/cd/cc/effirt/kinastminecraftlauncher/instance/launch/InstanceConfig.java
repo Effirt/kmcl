@@ -30,8 +30,8 @@ public class InstanceConfig {
             p.setProperty("java", "");
             p.setProperty("jvmArguments", "");
             p.setProperty("arguments", "");
-            p.setProperty("minMemory", "");
-            p.setProperty("maxMemory", "");
+            p.setProperty("minMemoryByte", "");
+            p.setProperty("maxMemoryByte", "");
             p.setProperty("defaultJvmArguments", "true");
             try {
                 Files.createDirectories(gameDir);
@@ -56,12 +56,12 @@ public class InstanceConfig {
         return p.getProperty("arguments", null);
     }
 
-    public static String getMinMemory() {
-        return p.getProperty("minMemory", null);
+    public static String getMinMemoryByte() {
+        return p.getProperty("minMemoryByte", null);
     }
 
-    public static String getMaxMemory() {
-        return p.getProperty("maxMemory", null);
+    public static String getMaxMemoryByte() {
+        return p.getProperty("maxMemoryByte", null);
     }
 
     public static boolean getDefaultJvmArguments() {
@@ -69,7 +69,6 @@ public class InstanceConfig {
         return switch (s) {
             case "true" -> true;
             case "false" -> false;
-            case null -> true;
             default -> {
                 Log.warn("Invalid value '{}'", p.getProperty("defaultJvmArguments"));
                 yield true;

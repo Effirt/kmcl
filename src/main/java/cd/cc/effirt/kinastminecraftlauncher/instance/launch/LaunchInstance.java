@@ -63,8 +63,8 @@ public class LaunchInstance {
         String java = InstanceConfig.getJava();
         String arguments = InstanceConfig.getArguments();
         String jvmArguments = InstanceConfig.getJvmArguments();
-        String maxMemory = InstanceConfig.getMaxMemory();
-        String minMemory = InstanceConfig.getMinMemory();
+        String maxMemoryByte = InstanceConfig.getMaxMemoryByte();
+        String minMemoryByte = InstanceConfig.getMinMemoryByte();
         // 是否采用 version JSON 里的默认参数（kmcl.properties: defaultJvmArguments）
         boolean defaultJvmArguments = InstanceConfig.getDefaultJvmArguments();
 
@@ -92,21 +92,21 @@ public class LaunchInstance {
             cmd.add("-Dsun.stderr.encoding=UTF-8");
         }
 
-        boolean userXmx = maxMemory != null && !maxMemory.isEmpty();
-        boolean userXms = minMemory != null && !minMemory.isEmpty();
-        if (userXmx) cmd.add("-Xmx" + maxMemory);
-        if (userXms) cmd.add("-Xms" + minMemory);
+        boolean userXmx = maxMemoryByte != null && !maxMemoryByte.isEmpty();
+        boolean userXms = minMemoryByte != null && !minMemoryByte.isEmpty();
+        if (userXmx) cmd.add("-Xmx" + maxMemoryByte);
+        if (userXms) cmd.add("-Xms" + minMemoryByte);
 
         boolean modern = info.arguments() != null;
 
         if (jvmArguments != null && !jvmArguments.isEmpty()) appendArgs(cmd, jvmArguments);
 
         // 4.1 JVM 参数
+        cmd.add("-Djava.library.path=" + vars.get("natives_directory"));
         if (modern) {
             // 1.16 及更早用 LWJGL 3.2，natives 是解压出来的 dll，必须从 java.library.path 加载；
             // 1.17+ 虽然能从 classpath 里的 natives-*.jar 直接取，但补上也无害。
             // 版本 JSON 自带的 -Djava.library.path 会在下面被跳过，这里统一补一次。
-            cmd.add("-Djava.library.path=" + vars.get("natives_directory"));
             if (defaultJvmArguments) {
                 for (Argument a : info.arguments().defaultUserJvm()) {
                     if (!a.passes()) continue;
@@ -138,7 +138,6 @@ public class LaunchInstance {
                 }
             }
         } else {
-            cmd.add("-Djava.library.path=" + vars.get("natives_directory"));
             cmd.add("-cp");
             cmd.add(vars.get("classpath"));
         }
